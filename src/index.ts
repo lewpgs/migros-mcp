@@ -5,12 +5,14 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   SearchProductsSchema,
   GetProductDetailsSchema,
+  GetStockSchema,
   SearchStoresSchema,
   GetPromotionsSchema,
 } from "./schemas.js";
 import {
   searchProducts,
   getProductDetails,
+  getStock,
   getCategories,
   searchStores,
   getPromotions,
@@ -47,6 +49,23 @@ server.tool(
   async ({ productIds }) => {
     try {
       const result = await getProductDetails(productIds);
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_stock",
+  "Check product stock at a specific Migros store. Use search_products and search_stores first to get the IDs. Stock is approximate and updated once a day.",
+  GetStockSchema.shape,
+  async ({ productId, storeId }) => {
+    try {
+      const result = await getStock(productId, storeId);
       return { content: [{ type: "text", text: result }] };
     } catch (error) {
       return {

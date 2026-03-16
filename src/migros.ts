@@ -66,6 +66,24 @@ export async function getProductDetails(
   });
 }
 
+export async function getStock(
+  productId: string,
+  storeId: string
+): Promise<{ catalogItemId: string; stock: number | null }> {
+  return withToken(async (token) => {
+    const result = await migros.products.productStock.getProductSupply(
+      { pids: productId, costCenterIds: storeId } as any,
+      token
+    );
+    const avail = (result?.availabilities as Array<{ id: string; stock: number }>) ?? [];
+    const match = avail.find((a) => a.id === storeId);
+    return {
+      catalogItemId: result?.catalogItemId ?? productId,
+      stock: match?.stock ?? null,
+    };
+  });
+}
+
 export async function getCategories(): Promise<unknown> {
   return withToken(async (token) => {
     const result = await migros.products.productSearch.categoryList({}, token);

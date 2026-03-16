@@ -1,6 +1,7 @@
 import {
   searchProducts as apiSearchProducts,
   getProductDetails as apiGetProductDetails,
+  getStock as apiGetStock,
   getCategories as apiGetCategories,
   searchStores as apiSearchStores,
   getPromotions as apiGetPromotions,
@@ -32,7 +33,8 @@ export async function searchProducts(
 }
 
 function formatNutrition(product: Record<string, unknown>): string | null {
-  const nutrients = product.nutrientsInformation as
+  const productInfo = product.productInformation as Record<string, unknown> | undefined;
+  const nutrients = (productInfo?.nutrientsInformation ?? product.nutrientsInformation) as
     | { nutrientsTable?: { headers?: unknown[]; rows?: unknown[] } }
     | undefined;
 
@@ -44,13 +46,15 @@ function formatNutrition(product: Record<string, unknown>): string | null {
 
   if (rows.length === 0) return null;
 
-  const headerLabels = headers.map(
-    (h) => `${h.label ?? ""}${h.unit ? ` (${h.unit})` : ""}`
-  );
+  // Headers can be strings or objects with label/unit
+  const headerLabels = headers.map((h) => {
+    if (typeof h === "string") return h;
+    return `${h.label ?? ""}${h.unit ? ` (${h.unit})` : ""}`;
+  });
 
   const lines: string[] = [];
   lines.push(`| Nutrient | ${headerLabels.join(" | ")} |`);
-  lines.push(`|${"-|".repeat(headerLabels.length + 1)}`);
+  lines.push(`| --- | ${headerLabels.map(() => "---").join(" | ")} |`);
 
   for (const row of rows) {
     const values = (row.values ?? []).join(" | ");
@@ -62,43 +66,61 @@ function formatNutrition(product: Record<string, unknown>): string | null {
 
 function formatProduct(product: Record<string, unknown>): Record<string, unknown> {
   const p = product as Record<string, unknown>;
+  const productInfo = p.productInformation as Record<string, unknown> | undefined;
+  const mainInfo = productInfo?.mainInformation as Record<string, unknown> | undefined;
+
+  // Brand can be top-level or nested in mainInformation
+  const brandInfo = mainInfo?.brand as Record<string, unknown> | undefined;
+  const brand = p.brand ?? brandInfo?.name;
 
   const formatted: Record<string, unknown> = {
     uid: p.uid,
     name: p.name ?? p.title,
-    brand: p.brand,
-    brandLine: p.brandLine,
+    brand: brand,
+    versioning: p.versioning,
     description: p.description,
-    origin: p.origin,
   };
 
-  // Price
-  const price = p.price as Record<string, unknown> | undefined;
-  if (price) {
-    formatted.price = {
-      value: price.value,
-      unitPrice: price.unitPrice,
-      promotionalPrice: price.promotionalPrice,
-    };
+  // Price info (under offer.price)
+  const offer = p.offer as Record<string, unknown> | undefined;
+  const offerPrice = offer?.price as Record<string, unknown> | undefined;
+  if (offerPrice) {
+    formatted.price = `CHF ${offerPrice.advertisedDisplayValue}`;
+    const unitPrice = offerPrice.unitPrice as Record<string, unknown> | undefined;
+    if (unitPrice) {
+      formatted.unitPrice = `CHF ${unitPrice.value}/${unitPrice.unit}`;
+    }
+  }
+  // Promotional price
+  const promoPrice = offer?.promotionPrice as Record<string, unknown> | undefined;
+  if (promoPrice?.advertisedDisplayValue) {
+    formatted.promoPrice = `CHF ${promoPrice.advertisedDisplayValue}`;
+  }
+  if (offer?.quantity) {
+    formatted.quantity = offer.quantity;
   }
 
   // Ratings
-  const ratings = p.ratings as Record<string, unknown> | undefined;
+  const rating = mainInfo?.rating as Record<string, unknown> | undefined;
+  const ratings = (rating ?? p.ratings) as Record<string, unknown> | undefined;
   if (ratings) {
     formatted.ratings = {
-      average: ratings.average,
-      count: ratings.count,
+      average: ratings.nbStars ?? ratings.average,
+      count: ratings.nbReviews ?? ratings.count,
     };
   }
 
   // Ingredients
-  if (p.ingredients) {
-    formatted.ingredients = p.ingredients;
+  const ingredients = mainInfo?.ingredients ?? p.ingredients;
+  if (ingredients) {
+    // Strip HTML tags
+    formatted.ingredients = (ingredients as string).replace(/<[^>]*>/g, "");
   }
 
   // Allergens
-  if (p.allergenText) {
-    formatted.allergens = p.allergenText;
+  const allergens = mainInfo?.allergens ?? mainInfo?.allergenIndication ?? p.allergenText;
+  if (allergens) {
+    formatted.allergens = allergens;
   }
 
   // Nutrition table (formatted as markdown)
@@ -142,6 +164,30 @@ export async function getProductDetails(
   const formatted = (products as Record<string, unknown>[]).map(formatProduct);
 
   return JSON.stringify(formatted, null, 2);
+}
+
+export async function getStock(
+  productId: string,
+  storeId: string
+): Promise<string> {
+  const result = await apiGetStock(productId, storeId);
+
+  if (result.stock === null) {
+    return JSON.stringify({
+      productId,
+      storeId,
+      inStock: false,
+      message: "Product not available at this store or stock data unavailable.",
+    });
+  }
+
+  return JSON.stringify({
+    productId,
+    storeId,
+    inStock: result.stock > 0,
+    stock: result.stock,
+    note: "Stock is updated once a day and is approximate.",
+  });
 }
 
 export async function getCategories(): Promise<string> {

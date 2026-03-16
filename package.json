@@ -1,6 +1,6 @@
 {
   "name": "migros-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for Migros Switzerland product data, nutrition info, store search, and promotions",
   "main": "dist/index.js",
   "bin": {

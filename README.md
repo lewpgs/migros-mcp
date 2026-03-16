@@ -77,6 +77,7 @@ npx migros-mcp
 |---|---|
 | `search_products` | Search Migros products by name or keyword. Returns product IDs. |
 | `get_product_details` | Get full product info: nutrition, ingredients, allergens, price, ratings. |
+| `get_stock` | Check product availability at a specific Migros store. Updated once daily. |
 | `get_categories` | List all Migros product categories. |
 | `search_stores` | Find Migros stores by location with addresses and opening hours. |
 | `get_promotions` | Search current Migros promotions and deals. |

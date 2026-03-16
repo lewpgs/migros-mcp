@@ -23,6 +23,15 @@ export const SearchStoresSchema = z.object({
     .describe("Search query for Migros stores (city name, zip code, etc.)"),
 });
 
+export const GetStockSchema = z.object({
+  productId: z
+    .string()
+    .describe("Product UID to check stock for. Get this from search_products."),
+  storeId: z
+    .string()
+    .describe("Store ID (costCenterId) to check stock at. Get this from search_stores."),
+});
+
 export const GetPromotionsSchema = z.object({
   query: z
     .string()
