@@ -1,0 +1,49 @@
+{
+  "name": "migros-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Migros Switzerland product data, nutrition info, store search, and promotions",
+  "main": "dist/index.js",
+  "bin": {
+    "migros-mcp": "dist/index.js"
+  },
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lewpgs/migros-mcp.git"
+  },
+  "homepage": "https://github.com/lewpgs/migros-mcp",
+  "bugs": {
+    "url": "https://github.com/lewpgs/migros-mcp/issues"
+  },
+  "author": "lewpgs",
+  "keywords": [
+    "mcp",
+    "migros",
+    "switzerland",
+    "grocery",
+    "nutrition",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "migros-api-wrapper": "^1.1.37",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
