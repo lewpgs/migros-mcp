@@ -58,8 +58,13 @@ export async function getProductDetails(
   productIds: string[]
 ): Promise<unknown[]> {
   return withToken(async (token) => {
+    // Detect if IDs are migrosIds (long numeric, 12+ digits) or uids (shorter numeric)
+    const isMigrosId = productIds.every((id) => id.length >= 12 && /^\d+$/.test(id));
+    const params = isMigrosId
+      ? { migrosIds: productIds.join(",") }
+      : { uids: productIds };
     const result = await migros.products.productDisplay.getProductDetails(
-      { uids: productIds } as any,
+      params as any,
       token
     );
     return result ?? [];

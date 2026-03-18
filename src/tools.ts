@@ -75,6 +75,7 @@ function formatProduct(product: Record<string, unknown>): Record<string, unknown
 
   const formatted: Record<string, unknown> = {
     uid: p.uid,
+    migrosId: p.migrosId,
     name: p.name ?? p.title,
     brand: brand,
     versioning: p.versioning,
