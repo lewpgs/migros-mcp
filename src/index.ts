@@ -17,7 +17,15 @@ import {
   searchStores,
   getPromotions,
 } from "./tools.js";
-import { getProfile } from "./auth-tools.js";
+import { getProfile, getBasket } from "./auth-tools.js";
+import { z } from "zod";
+
+const GetBasketSchema = z.object({
+  shoppingListId: z
+    .number()
+    .optional()
+    .describe("Optional shopping list ID. Omit to fetch the user's primary list."),
+});
 
 const server = new McpServer({
   name: "migros-mcp",
@@ -138,6 +146,23 @@ server.tool(
   async () => {
     try {
       const result = await getProfile();
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_basket",
+  "Fetch the items currently in the user's shopping basket (Migros calls this a shopping list). Returns product IDs and quantities; use get_product_details to enrich. Requires authentication.",
+  GetBasketSchema.shape,
+  async ({ shoppingListId }) => {
+    try {
+      const result = await getBasket({ shoppingListId });
       return { content: [{ type: "text", text: result }] };
     } catch (error) {
       return {
