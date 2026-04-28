@@ -138,7 +138,11 @@ MIGROS_EMAIL=... MIGROS_PASSWORD=... MIGROS_TOTP_SECRET=... npx migros-mcp   # a
 Use the [migros-api-wrapper](https://www.npmjs.com/package/migros-api-wrapper) which calls the same endpoints the Migros website uses internally. A guest token is fetched at startup and cached.
 
 ### Authenticated tools
-Use OAuth 2.0 against `login.migros.ch`. The first call runs a credentialed login (email → password → TOTP) and caches the resulting cookies + access token. Every 30 minutes the token is refreshed silently using cached cookies — no login form re-submission. The session lives at:
+Use OAuth 2.0 against `login.migros.ch`. The first call runs a credentialed login (email → password → TOTP) and caches the resulting cookies + access token. Every 30 minutes the token is refreshed silently using cached cookies — no login form re-submission.
+
+The cache is persisted across MCP process restarts (Claude Desktop launches, Mac reboots, etc.) so we re-authenticate maybe twice a year instead of dozens of times a day. Migros' login endpoint is behind Cloudflare bot detection that throttles frequent logins, so persistence is what keeps the MCP from getting rate-limited.
+
+The session lives at:
 
 - macOS: `~/Library/Application Support/migros-mcp/session.json`
 - Linux: `$XDG_CONFIG_HOME/migros-mcp/session.json`
