@@ -27,6 +27,10 @@ import {
   getOrders,
   getOrderDetails,
   getCheckoutLink,
+  getCumulusStatus,
+  getInStoreReceipts,
+  getReceiptDetails,
+  getCumulusCoupons,
 } from "./auth-tools.js";
 import { z } from "zod";
 
@@ -71,6 +75,26 @@ const GetOrderDetailsSchema = z.object({
   orderId: z
     .union([z.string(), z.number()])
     .describe("Order id (numeric). Get from get_orders."),
+});
+
+const GetInStoreReceiptsSchema = z.object({
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Start date YYYY-MM-DD. Default: 30 days ago."),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("End date YYYY-MM-DD. Default: today."),
+  limit: z.number().int().min(1).max(500).optional().describe("Max receipts to return. Default: 50."),
+});
+
+const GetReceiptDetailsSchema = z.object({
+  receiptId: z
+    .union([z.string(), z.number()])
+    .describe("Receipt id from get_in_store_receipts."),
 });
 
 const server = new McpServer({
@@ -328,6 +352,74 @@ server.tool(
   async () => {
     try {
       const result = await getCheckoutLink();
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_cumulus_status",
+  "Get the user's Cumulus loyalty card status: points balance, level, cardholder, lifetime stats. Requires authentication.",
+  {},
+  async () => {
+    try {
+      const result = await getCumulusStatus();
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_in_store_receipts",
+  "List the user's in-store Migros receipts (Kassenbons) over a date range. Default: last 30 days. Use get_receipt_details with an id for line items. Requires authentication.",
+  GetInStoreReceiptsSchema.shape,
+  async ({ startDate, endDate, limit }) => {
+    try {
+      const result = await getInStoreReceipts({ startDate, endDate, limit });
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_receipt_details",
+  "Get the full line-item breakdown of one in-store receipt: products, quantities, prices, points earned. Requires authentication.",
+  GetReceiptDetailsSchema.shape,
+  async ({ receiptId }) => {
+    try {
+      const result = await getReceiptDetails({ receiptId });
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_cumulus_coupons",
+  "List active Cumulus coupons targeted at the user (personalized offers based on shopping history). Requires authentication.",
+  {},
+  async () => {
+    try {
+      const result = await getCumulusCoupons();
       return { content: [{ type: "text", text: result }] };
     } catch (error) {
       return {

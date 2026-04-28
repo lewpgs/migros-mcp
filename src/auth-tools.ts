@@ -306,6 +306,117 @@ export async function getOrderDetails(args: { orderId: string | number }): Promi
   return JSON.stringify(data, null, 2);
 }
 
+// ---------------------------------------------------------------------------
+// Cumulus / in-store shopping
+// ---------------------------------------------------------------------------
+
+/**
+ * Cumulus card status: points balance, level, cardholder, lifetime savings.
+ * Useful as a "what's my Migros loyalty status" overview.
+ */
+export async function getCumulusStatus(): Promise<string> {
+  const data = (await api(
+    "GET",
+    "/retentionapi/public/web/v1/customers/cumulus/details",
+    undefined,
+    { creds: credsFromEnv() }
+  )) as Record<string, unknown>;
+
+  // The exact field set varies; surface the common ones the LLM will care about.
+  const owner = data.cumulusCardOwner as Record<string, unknown> | undefined;
+  return JSON.stringify(
+    {
+      cumulusId: data.cumulusId,
+      level: data.level ?? data.cumulusLevel,
+      pointsBalance: data.periodToDatePointsBalance ?? data.pointsBalance,
+      lifetimePoints: data.lifetimePoints ?? data.totalPoints,
+      cardholder: owner ? `${owner.firstName ?? ""} ${owner.lastName ?? ""}`.trim() : undefined,
+      cardholderTitle: owner?.title,
+      raw: data, // keep raw for the LLM in case it wants other fields
+    },
+    null,
+    2
+  );
+}
+
+/**
+ * List in-store receipts (Kassenbons) over a date range. Default range: last
+ * 30 days. The supermarketOnly flag excludes online order invoices, so this
+ * tool answers "what did I buy at the physical store?".
+ */
+export async function getInStoreReceipts(args: {
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+} = {}): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const startDate = args.startDate ?? thirtyDaysAgo;
+  const endDate = args.endDate ?? today;
+  const limit = args.limit ?? 50;
+
+  const url =
+    `/retentionapi/public/web/v1/receipts?startDate=${encodeURIComponent(startDate)}` +
+    `&endDate=${encodeURIComponent(endDate)}` +
+    `&supermarketOnly=true&limit=${limit}`;
+  const data = await api("GET", url, undefined, { creds: credsFromEnv() });
+
+  // Response may be an array or an envelope; normalize.
+  const list = Array.isArray(data) ? data : (data as { receipts?: unknown[] }).receipts ?? [];
+  return JSON.stringify(
+    {
+      startDate,
+      endDate,
+      count: list.length,
+      receipts: list,
+      hint: list.length > 0
+        ? "Use get_receipt_details with a receipt id to inspect line items."
+        : `No in-store receipts in ${startDate} to ${endDate}.`,
+    },
+    null,
+    2
+  );
+}
+
+/** Full line-item breakdown for one in-store receipt. */
+export async function getReceiptDetails(args: { receiptId: string | number }): Promise<string> {
+  const data = await api(
+    "GET",
+    `/retentionapi/public/web/v1/receipts/${encodeURIComponent(String(args.receiptId))}`,
+    undefined,
+    { creds: credsFromEnv() }
+  );
+  return JSON.stringify(data, null, 2);
+}
+
+/**
+ * Active Cumulus coupons targeted at the user. Migros personalises these based
+ * on shopping history — they typically expire after a few weeks.
+ */
+export async function getCumulusCoupons(): Promise<string> {
+  // The SPA calls cumulus-coupons with a deliveryRequestKey when in checkout
+  // context (filters to coupons valid for the active delivery). For a general
+  // "what coupons do I have" view, omit the key — the server returns all.
+  const data = await api(
+    "GET",
+    "/retentionapi/public/web/v1/cumulus-coupons",
+    undefined,
+    { creds: credsFromEnv() }
+  );
+  const list = Array.isArray(data) ? data : (data as { coupons?: unknown[] }).coupons ?? [];
+  return JSON.stringify(
+    {
+      count: list.length,
+      coupons: list,
+      hint: list.length > 0
+        ? "Each coupon has an id, discount, eligible products / categories, and expiry."
+        : "No active personal coupons.",
+    },
+    null,
+    2
+  );
+}
+
 /**
  * Fetch the user's saved addresses (delivery + billing). Filtered server-side
  * by the deliveryOnly/billingOnly flags; we ask for both by default.

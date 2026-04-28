@@ -24,6 +24,10 @@ Search [Migros](https://www.migros.ch) products and (optionally) manage your bas
 - "Where will my order be delivered to?"
 - "Show me my last 5 Migros orders"
 - "Give me the link to finish my checkout"
+- "How much did I spend at Migros last month?"
+- "What was on my last in-store receipt?"
+- "Which Cumulus coupons do I have right now?"
+- "How many Cumulus points do I have?"
 
 The basket and order tools require your Migros account credentials. They're optional — if you skip them at install, the anonymous tools still work.
 
@@ -131,6 +135,10 @@ MIGROS_EMAIL=... MIGROS_PASSWORD=... MIGROS_TOTP_SECRET=... npx migros-mcp   # a
 | `get_orders` | List your online orders, paginated, filterable by status. |
 | `get_order_details` | Full details of a single order by id. |
 | `get_checkout_link` | Returns the URL to open in your browser to complete checkout. |
+| `get_cumulus_status` | Cumulus loyalty card status: points balance, level, cardholder. |
+| `get_in_store_receipts` | List in-store receipts (Kassenbons) over a date range. |
+| `get_receipt_details` | Full line items of a single in-store receipt. |
+| `get_cumulus_coupons` | Active personalized Cumulus coupons. |
 
 ## How it works
 
