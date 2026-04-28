@@ -1,6 +1,8 @@
 import { MigrosAPI } from "migros-api-wrapper";
 
 const migros = new MigrosAPI();
+// Migusto (recipes) is exposed as a static on MigrosAPI, not on the instance.
+const migusto = MigrosAPI.migusto;
 
 let cachedToken: string | null = null;
 
@@ -112,4 +114,51 @@ export async function getPromotions(query: string): Promise<unknown> {
       );
     return result?.items ?? [];
   });
+}
+
+// ---------------------------------------------------------------------------
+// Migusto (recipes) — public, no auth required
+// ---------------------------------------------------------------------------
+
+export async function searchRecipes(args: {
+  searchTerm?: string;
+  ingredients?: string[];
+  language?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<unknown> {
+  // Only include fields that are actually set; the underlying wrapper
+  // mis-encodes the request when given explicit `undefined` values.
+  const opts: Record<string, unknown> = {
+    limit: args.limit ?? 20,
+    offset: args.offset ?? 0,
+  };
+  if (args.searchTerm) opts.searchTerm = args.searchTerm;
+  if (args.ingredients?.length) opts.ingredients = args.ingredients;
+  if (args.language) opts.language = args.language;
+  return await migusto.recipeSearch(opts as any);
+}
+
+export async function getRecipeDetails(args: {
+  slug: string;
+  language?: string;
+}): Promise<unknown> {
+  const opts: Record<string, unknown> = { slug: args.slug };
+  if (args.language) opts.language = args.language;
+  return await migusto.recipeDetails(opts as any);
+}
+
+export async function getRecipeProducts(args: {
+  id: string;
+  language?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<unknown> {
+  const opts: Record<string, unknown> = {
+    id: args.id,
+    limit: args.limit ?? 50,
+    offset: args.offset ?? 0,
+  };
+  if (args.language) opts.language = args.language;
+  return await migusto.recipeProducts(opts as any);
 }

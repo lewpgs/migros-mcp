@@ -16,6 +16,9 @@ import {
   getCategories,
   searchStores,
   getPromotions,
+  searchRecipes,
+  getRecipeDetails,
+  getRecipeProducts,
 } from "./tools.js";
 import {
   getProfile,
@@ -95,6 +98,26 @@ const GetReceiptDetailsSchema = z.object({
   receiptId: z
     .union([z.string(), z.number()])
     .describe("Receipt id from get_in_store_receipts."),
+});
+
+const SearchRecipesSchema = z.object({
+  query: z.string().optional().describe("Free-text search term, e.g. 'pasta carbonara'."),
+  ingredients: z.array(z.string()).optional().describe("Filter to recipes that use these ingredients."),
+  language: z.string().optional().describe("Language code: de, fr, it, en. Default: de."),
+  limit: z.number().int().min(1).max(50).optional().describe("Max recipes to return. Default: 20."),
+  offset: z.number().int().min(0).optional().describe("0-based offset for pagination."),
+});
+
+const GetRecipeDetailsSchema = z.object({
+  slug: z.string().describe("Recipe slug from search_recipes (the URL-safe id)."),
+  language: z.string().optional().describe("Language code. Default: de."),
+});
+
+const GetRecipeProductsSchema = z.object({
+  recipeId: z.string().describe("Recipe id (UUID) from search_recipes. NOT the slug."),
+  language: z.string().optional().describe("Language code. Default: de."),
+  limit: z.number().int().min(1).max(100).optional(),
+  offset: z.number().int().min(0).optional(),
 });
 
 const server = new McpServer({
@@ -196,6 +219,57 @@ server.tool(
   async ({ query }) => {
     try {
       const result = await getPromotions(query ?? "");
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "search_recipes",
+  "Search Migusto (Migros' recipe site) by free-text query and/or ingredients. Returns recipe id, slug, title, cooking time, difficulty. Use get_recipe_details for full info or get_recipe_products to get Migros product UIDs to add to the basket.",
+  SearchRecipesSchema.shape,
+  async ({ query, ingredients, language, limit, offset }) => {
+    try {
+      const result = await searchRecipes({ query, ingredients, language, limit, offset });
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_recipe_details",
+  "Fetch a full recipe by slug: ingredients with quantities, step-by-step instructions, photos, nutrition. Use search_recipes first to find the slug.",
+  GetRecipeDetailsSchema.shape,
+  async ({ slug, language }) => {
+    try {
+      const result = await getRecipeDetails({ slug, language });
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_recipe_products",
+  "Fetch the Migros products needed for a recipe — returns product UIDs you can pass directly to add_to_basket. Bridges recipes to shopping. Use the recipe ID from search_recipes (NOT the slug).",
+  GetRecipeProductsSchema.shape,
+  async ({ recipeId, language, limit, offset }) => {
+    try {
+      const result = await getRecipeProducts({ recipeId, language, limit, offset });
       return { content: [{ type: "text", text: result }] };
     } catch (error) {
       return {

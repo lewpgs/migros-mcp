@@ -16,6 +16,7 @@ Search [Migros](https://www.migros.ch) products and (optionally) manage your bas
 - "Find Migros stores near Zurich"
 - "What promotions does Migros have right now?"
 - "Compare the protein content of these two products"
+- "Find me a recipe for risotto and add the ingredients to my basket" (combines anonymous recipe search with authenticated cart write)
 
 **With your Migros account (optional):**
 - "What's currently in my Migros basket?"
@@ -121,6 +122,9 @@ MIGROS_EMAIL=... MIGROS_PASSWORD=... MIGROS_TOTP_SECRET=... npx migros-mcp   # a
 | `get_categories` | List all Migros product categories. |
 | `search_stores` | Find Migros stores by location with addresses and opening hours. |
 | `get_promotions` | Search current Migros promotions and deals. |
+| `search_recipes` | Search Migusto (Migros' recipe site) by query and/or ingredients. German/French/Italian only. |
+| `get_recipe_details` | Full recipe by slug: ingredients, instructions, photos, nutrition. |
+| `get_recipe_products` | Migros product UIDs for a recipe — feed directly into `add_to_basket`. |
 
 ### Authenticated (require credentials)
 
