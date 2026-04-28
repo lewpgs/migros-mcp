@@ -13,7 +13,7 @@ const UA_WWW = "Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox
 const REDIRECT_URI = "https://www.migros.ch/m-login-silent-login-redirect.html";
 
 let _client: AxiosInstance | null = null;
-function client(): AxiosInstance {
+export function client(): AxiosInstance {
   // Lazily build to avoid creating an https.Agent at module-load time.
   if (_client) return _client;
   _client = axios.create({
@@ -24,11 +24,11 @@ function client(): AxiosInstance {
   return _client;
 }
 
-function uaFor(host: string): string {
+export function uaFor(host: string): string {
   return host === "www.migros.ch" ? UA_WWW : UA_LOGIN;
 }
 
-function uniformHeaders(host: string, session: Session, extra: Record<string, string> = {}): Record<string, string> {
+export function uniformHeaders(host: string, session: Session, extra: Record<string, string> = {}): Record<string, string> {
   return {
     "User-Agent": uaFor(host),
     "Accept-Language": "en-US,en;q=0.9",
