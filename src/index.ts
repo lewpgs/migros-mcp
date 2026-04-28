@@ -17,7 +17,7 @@ import {
   searchStores,
   getPromotions,
 } from "./tools.js";
-import { getProfile, getBasket } from "./auth-tools.js";
+import { getProfile, getBasket, addToBasket, updateBasketQuantity, removeFromBasket } from "./auth-tools.js";
 import { z } from "zod";
 
 const GetBasketSchema = z.object({
@@ -25,6 +25,28 @@ const GetBasketSchema = z.object({
     .number()
     .optional()
     .describe("Optional shopping list ID. Omit to fetch the user's primary list."),
+});
+
+const AddToBasketSchema = z.object({
+  productId: z.string().describe("Product UID from search_products (e.g. '100049709')."),
+  quantity: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe("Target quantity. Defaults to 1. Note: this REPLACES any existing quantity, it does not increment."),
+  shoppingListId: z.number().optional().describe("Optional list ID; omit to use the primary list."),
+});
+
+const UpdateBasketQuantitySchema = z.object({
+  productId: z.string().describe("Product UID."),
+  quantity: z.number().int().min(0).describe("Exact target quantity. 0 removes the item."),
+  shoppingListId: z.number().optional(),
+});
+
+const RemoveFromBasketSchema = z.object({
+  productId: z.string().describe("Product UID to remove from the basket."),
+  shoppingListId: z.number().optional(),
 });
 
 const server = new McpServer({
@@ -163,6 +185,57 @@ server.tool(
   async ({ shoppingListId }) => {
     try {
       const result = await getBasket({ shoppingListId });
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "add_to_basket",
+  "Add a product to the user's basket (or set its quantity if already present). The underlying API is upsert-to-target, not increment. Returns the updated basket. Requires authentication.",
+  AddToBasketSchema.shape,
+  async ({ productId, quantity, shoppingListId }) => {
+    try {
+      const result = await addToBasket({ productId, quantity, shoppingListId });
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "update_basket_quantity",
+  "Set an item's exact quantity in the basket. quantity=0 removes the item. Returns the updated basket. Requires authentication.",
+  UpdateBasketQuantitySchema.shape,
+  async ({ productId, quantity, shoppingListId }) => {
+    try {
+      const result = await updateBasketQuantity({ productId, quantity, shoppingListId });
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "remove_from_basket",
+  "Remove a product from the user's basket. Returns the updated basket. Requires authentication.",
+  RemoveFromBasketSchema.shape,
+  async ({ productId, shoppingListId }) => {
+    try {
+      const result = await removeFromBasket({ productId, shoppingListId });
       return { content: [{ type: "text", text: result }] };
     } catch (error) {
       return {
