@@ -87,11 +87,11 @@ register(server, "search_recipes",
   SearchRecipesSchema.shape, (args) => searchRecipes(args));
 
 register(server, "get_recipe_details",
-  "Fetch a full recipe by slug: ingredients with quantities, step-by-step instructions, photos, nutrition. Use search_recipes first to find the slug.",
+  "Fetch a full Migusto recipe by slug: ingredients with quantities, step-by-step instructions, photos, nutrition. Use search_recipes first to find the slug. (Migusto is Migros' recipe site at migusto.migros.ch.)",
   GetRecipeDetailsSchema.shape, (args) => getRecipeDetails(args));
 
 register(server, "get_recipe_products",
-  "Fetch the Migros products needed for a recipe — returns product UIDs you can pass directly to add_to_basket. Bridges recipes to shopping. Use the recipe ID from search_recipes (NOT the slug).",
+  "Fetch the Migros products needed for a Migusto recipe — returns product UIDs you can pass directly to add_to_basket. Bridges recipes to shopping. Use the recipe ID from search_recipes (NOT the slug).",
   GetRecipeProductsSchema.shape, (args) => getRecipeProducts(args));
 
 // --- Authenticated: account ---
