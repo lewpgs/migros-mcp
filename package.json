@@ -1,7 +1,7 @@
 {
   "name": "migros-mcp",
-  "version": "0.2.1",
-  "description": "MCP server for Migros Switzerland product data, nutrition info, store search, and promotions",
+  "version": "0.3.0",
+  "description": "MCP server for Migros Switzerland: search products, get nutrition info, find stores, and (with credentials) manage your basket and order history",
   "main": "dist/index.js",
   "bin": {
     "migros-mcp": "dist/index.js"

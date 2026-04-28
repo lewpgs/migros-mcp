@@ -1,0 +1,67 @@
+{
+  "manifest_version": "0.3",
+  "name": "migros-mcp",
+  "display_name": "Migros",
+  "version": "0.3.0",
+  "description": "Search Migros products and (optionally) manage your basket, addresses, and order history through Claude.",
+  "author": {
+    "name": "lewpgs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lewpgs/migros-mcp"
+  },
+  "license": "MIT",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "MIGROS_EMAIL": "${user_config.email}",
+        "MIGROS_PASSWORD": "${user_config.password}",
+        "MIGROS_TOTP_SECRET": "${user_config.totp_secret}"
+      }
+    }
+  },
+  "user_config": {
+    "email": {
+      "type": "string",
+      "title": "Migros Email (optional)",
+      "description": "Your migros.ch login email. Leave blank to use anonymous (read-only) tools only.",
+      "required": false
+    },
+    "password": {
+      "type": "string",
+      "title": "Migros Password (optional)",
+      "description": "Your migros.ch password. Leave blank to skip authenticated tools.",
+      "sensitive": true,
+      "required": false
+    },
+    "totp_secret": {
+      "type": "string",
+      "title": "Migros TOTP Secret (optional)",
+      "description": "Base32-encoded TOTP seed if you have 2FA enabled. From your authenticator app's 'view secret' option, or from the QR code when you set up 2FA.",
+      "sensitive": true,
+      "required": false
+    }
+  },
+  "tools": [
+    { "name": "search_products", "description": "Search Migros products by name or keyword" },
+    { "name": "get_product_details", "description": "Get full product info: nutrition, ingredients, allergens, price" },
+    { "name": "get_stock", "description": "Check product availability at a specific store" },
+    { "name": "get_categories", "description": "List all product categories" },
+    { "name": "search_stores", "description": "Find Migros stores by location with hours" },
+    { "name": "get_promotions", "description": "Browse current promotions and deals" },
+    { "name": "get_profile", "description": "(Auth) Logged-in customer's profile" },
+    { "name": "get_addresses", "description": "(Auth) Saved delivery and billing addresses" },
+    { "name": "get_basket", "description": "(Auth) Items currently in the user's basket" },
+    { "name": "add_to_basket", "description": "(Auth) Add a product to the basket" },
+    { "name": "update_basket_quantity", "description": "(Auth) Set an item's exact quantity (0 to remove)" },
+    { "name": "remove_from_basket", "description": "(Auth) Remove an item from the basket" },
+    { "name": "get_orders", "description": "(Auth) List the user's online orders, paginated" },
+    { "name": "get_order_details", "description": "(Auth) Full details of a single order by id" },
+    { "name": "get_checkout_link", "description": "(Auth) Hand off to the user's browser to complete checkout" }
+  ]
+}
