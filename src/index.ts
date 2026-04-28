@@ -17,6 +17,7 @@ import {
   searchStores,
   getPromotions,
 } from "./tools.js";
+import { getProfile } from "./auth-tools.js";
 
 const server = new McpServer({
   name: "migros-mcp",
@@ -117,6 +118,26 @@ server.tool(
   async ({ query }) => {
     try {
       const result = await getPromotions(query ?? "");
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// --- Authenticated tools ---
+// Require a logged-in user session. See README for setup (env vars or cookie cache).
+
+server.tool(
+  "get_profile",
+  "Get the logged-in customer's basic profile (name, email, language, cooperative). Requires authentication.",
+  {},
+  async () => {
+    try {
+      const result = await getProfile();
       return { content: [{ type: "text", text: result }] };
     } catch (error) {
       return {
