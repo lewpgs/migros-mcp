@@ -40,7 +40,14 @@ The basket and order tools require your Migros account credentials. They're opti
 
 3. Optional: enter your Migros email, password, and TOTP secret if you want the basket/order tools. Leave all three blank for anonymous access only. Credentials are stored in your OS keychain by Claude Desktop.
 
-   **TOTP secret** is only needed if you have **TOTP-based two-factor authentication** enabled on your Migros account. Leave it blank if you log in with just a password (no 2FA).
+   **About the TOTP secret.** This is **NOT** the rotating 6-digit code your authenticator app shows. It is the **static base32 seed** given to you (or scanned via QR code) when you originally set up the authenticator. It's a one-time value, typically ~32 characters of `A-Z2-7` (for example: `JBSWY3DPEHPK3PXP3PXP3PXP3PXP3PXP`), and it doesn't change every 30 seconds.
+
+   How to find it:
+
+   - **1Password / Bitwarden / Proton Pass** — open the Migros entry, edit the OTP / one-time password field, click *"View one-time password secret"* (or similar). Copy the long string after `secret=`.
+   - **Google Authenticator / Authy** — these usually don't show the seed after enrollment. Either re-enroll a new authenticator in your Migros account settings (Migros will show the QR code; click the "Can't scan?" link to reveal the seed text), or set up a password manager that does expose it.
+
+   Leave the field blank entirely if your Migros account doesn't have 2FA enabled.
 
 That's it.
 

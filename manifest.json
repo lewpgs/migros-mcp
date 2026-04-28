@@ -42,7 +42,7 @@
     "totp_secret": {
       "type": "string",
       "title": "Migros TOTP Secret (optional)",
-      "description": "Base32-encoded TOTP seed if you have 2FA enabled. From your authenticator app's 'view secret' option, or from the QR code when you set up 2FA.",
+      "description": "The static base32 seed (~32 characters of A-Z2-7) you got when setting up your authenticator app. NOT the rotating 6-digit code. From your password manager's 'view OTP secret' option, or by re-enrolling a new authenticator and revealing the seed text. Leave blank if you have no 2FA.",
       "sensitive": true,
       "required": false
     }
