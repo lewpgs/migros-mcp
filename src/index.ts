@@ -398,7 +398,7 @@ server.tool(
 
 server.tool(
   "get_receipt_details",
-  "Get the full line-item breakdown of one in-store receipt: products, quantities, prices, points earned. Requires authentication.",
+  "Get the URL to view a single in-store receipt's line items in the browser. Line items aren't accessible via the API — get_in_store_receipts gives store/date/amount/points which is enough for most queries. Requires authentication.",
   GetReceiptDetailsSchema.shape,
   async ({ receiptId }) => {
     try {

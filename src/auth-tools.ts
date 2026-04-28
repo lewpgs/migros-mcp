@@ -378,15 +378,28 @@ export async function getInStoreReceipts(args: {
   );
 }
 
-/** Full line-item breakdown for one in-store receipt. */
+/**
+ * In-store receipt line items live on `account.migros.ch` behind a legacy
+ * CSRF-cookie auth flow that the modern Bearer JWT doesn't access. Rather
+ * than implement a parallel auth path, return the URL where the user can
+ * inspect the receipt in their browser. The list endpoint
+ * (get_in_store_receipts) already gives store, date, total, and points;
+ * line-by-line is rarely the deciding factor for LLM workflows.
+ */
 export async function getReceiptDetails(args: { receiptId: string | number }): Promise<string> {
-  const data = await api(
-    "GET",
-    `/retentionapi/public/web/v1/receipts/${encodeURIComponent(String(args.receiptId))}`,
-    undefined,
-    { creds: credsFromEnv() }
+  const id = String(args.receiptId);
+  return JSON.stringify(
+    {
+      receiptId: id,
+      message:
+        "Full line items aren't accessible via the public API used by this MCP. Open the URL below in your browser to view the receipt details directly.",
+      url: `https://account.migros.ch/purchases/receipts`,
+      hint:
+        "The receipt list (get_in_store_receipts) returns store, date, amount, and Cumulus points which is enough for most spending-analysis queries.",
+    },
+    null,
+    2
   );
-  return JSON.stringify(data, null, 2);
 }
 
 /**

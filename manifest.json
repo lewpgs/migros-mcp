@@ -65,7 +65,7 @@
     { "name": "get_checkout_link", "description": "(Auth) Hand off to the user's browser to complete checkout" },
     { "name": "get_cumulus_status", "description": "(Auth) Cumulus loyalty card status: points, level, cardholder" },
     { "name": "get_in_store_receipts", "description": "(Auth) List in-store Migros receipts (Kassenbons) over a date range" },
-    { "name": "get_receipt_details", "description": "(Auth) Full line items of a single in-store receipt" },
+    { "name": "get_receipt_details", "description": "(Auth) URL to view a single in-store receipt in the browser" },
     { "name": "get_cumulus_coupons", "description": "(Auth) Active personalized Cumulus coupons" }
   ]
 }

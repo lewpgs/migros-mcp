@@ -137,7 +137,7 @@ MIGROS_EMAIL=... MIGROS_PASSWORD=... MIGROS_TOTP_SECRET=... npx migros-mcp   # a
 | `get_checkout_link` | Returns the URL to open in your browser to complete checkout. |
 | `get_cumulus_status` | Cumulus loyalty card status: points balance, level, cardholder. |
 | `get_in_store_receipts` | List in-store receipts (Kassenbons) over a date range. |
-| `get_receipt_details` | Full line items of a single in-store receipt. |
+| `get_receipt_details` | URL to view a single in-store receipt's line items in the browser. |
 | `get_cumulus_coupons` | Active personalized Cumulus coupons. |
 
 ## How it works
