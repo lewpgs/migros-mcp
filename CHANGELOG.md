@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] — 2026-04-28
+
+### Documentation
+- Added an **Updating** section to the README explaining how releases reach users on each install path (unpinned `npx`, drag-installed `.mcpb`, or manually pinned configs). Triggered by the realization that pinned-version configs make every release require a manual user edit; the recommended install commands have always been unpinned.
+
 ## [0.3.0] — 2026-04-28
 
 Major feature release: authenticated user tools (basket, orders, addresses, profile, Cumulus) and recipe search via Migusto. The 6 existing anonymous tools are unchanged and continue to work without credentials.

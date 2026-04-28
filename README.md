@@ -110,6 +110,14 @@ npx migros-mcp                                                # anonymous
 MIGROS_EMAIL=... MIGROS_PASSWORD=... MIGROS_TOTP_SECRET=... npx migros-mcp   # authenticated
 ```
 
+## Updating
+
+The recommended install commands above use `npx -y migros-mcp` without pinning a version, so you auto-receive new releases. `npx` caches the package for ~7 days, so updates land on next launch within that window. To force-refresh sooner: `npm cache clean --force` and restart the host.
+
+If you've installed via the **drag-installed `.mcpb`** instead, Claude Desktop pins you to that specific version. Download the latest `.mcpb` from [Releases](https://github.com/lewpgs/migros-mcp/releases) and re-install to update. Your credentials in the OS keychain are preserved across re-installs.
+
+If you've **explicitly pinned** a version in your config (e.g. `migros-mcp@0.3.0`), update by editing the version number or removing the pin entirely.
+
 ## Available tools
 
 ### Anonymous (no credentials needed)

@@ -52,7 +52,7 @@ import {
 // Server + tool registrations
 // ---------------------------------------------------------------------------
 
-const server = new McpServer({ name: "migros-mcp", version: "0.3.0" });
+const server = new McpServer({ name: "migros-mcp", version: "0.3.1" });
 
 // --- Anonymous: search & browse ---
 

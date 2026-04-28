@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "migros-mcp",
   "display_name": "Migros",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Search Migros products and (optionally) manage your basket, addresses, and order history through Claude.",
   "author": {
     "name": "lewpgs"
