@@ -38,7 +38,9 @@ The basket and order tools require your Migros account credentials. They're opti
 
    **Windows** — In Claude Desktop, go to File > Settings > Extensions > Advanced Settings > Install Extension and select the file
 
-3. Optional: enter your Migros email, password, and TOTP secret if you want the basket/order tools. Leave blank for anonymous access only. Credentials are stored in your OS keychain by Claude Desktop.
+3. Optional: enter your Migros email, password, and TOTP secret if you want the basket/order tools. Leave all three blank for anonymous access only. Credentials are stored in your OS keychain by Claude Desktop.
+
+   **TOTP secret** is only needed if you have **TOTP-based two-factor authentication** enabled on your Migros account. Leave it blank if you log in with just a password (no 2FA).
 
 That's it.
 
@@ -137,6 +139,12 @@ If the cached session expires (typically a few weeks), the MCP automatically re-
 
 ### Order placement
 For safety, this MCP **does not** place orders programmatically. The `get_checkout_link` tool returns a URL the user opens in their real browser to confirm address, delivery slot, and payment via Migros' own checkout flow. Real money requires a real human click.
+
+## Known limitations
+
+- **2FA support is TOTP-only.** Accounts secured with a passkey (and no TOTP fallback) are not supported in v0.3.0. If your Migros account uses passkey as the only second factor, add a TOTP authenticator app in Migros account settings, then provide the TOTP secret to this MCP.
+- **No automatic order placement.** See above — `get_checkout_link` hands off to your browser for the actual placement.
+- **Cloudflare rate limits.** If the MCP fails the credentialed login repeatedly in a short window (e.g., wrong password retries), Cloudflare may briefly throttle the IP. Wait an hour and retry, or log in via your browser to refresh the session.
 
 ## Development
 
