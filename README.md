@@ -44,8 +44,10 @@ The basket and order tools require your Migros account credentials. They're opti
 
    How to find it:
 
-   - **1Password / Bitwarden / Proton Pass** — open the Migros entry, edit the OTP / one-time password field, click *"View one-time password secret"* (or similar). Copy the long string after `secret=`.
-   - **Google Authenticator / Authy** — these usually don't show the seed after enrollment. Either re-enroll a new authenticator in your Migros account settings (Migros will show the QR code; click the "Can't scan?" link to reveal the seed text), or set up a password manager that does expose it.
+   - **If you saved it during enrollment** — copy it from your password manager. In 1Password / Bitwarden / Proton Pass, open the Migros entry, edit the OTP field, choose *"View one-time password secret"* (or similar). The string after `secret=` is what you want.
+   - **If you didn't save it** — Migros only shows the seed during initial 2FA setup, on the same screen as the QR code, in a box labeled *"Or enter the following key in the authenticator app:"*. Once enrollment completes, the seed is gone for good.
+
+     To recover it: in Migros account settings, **remove** your existing 2FA, then **set it up again**. The new setup screen will show the new seed text below the QR code — copy it before completing enrollment, and re-add the new entry to your authenticator app.
 
    Leave the field blank entirely if your Migros account doesn't have 2FA enabled.
 
