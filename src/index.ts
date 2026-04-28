@@ -17,7 +17,14 @@ import {
   searchStores,
   getPromotions,
 } from "./tools.js";
-import { getProfile, getBasket, addToBasket, updateBasketQuantity, removeFromBasket } from "./auth-tools.js";
+import {
+  getProfile,
+  getBasket,
+  addToBasket,
+  updateBasketQuantity,
+  removeFromBasket,
+  getAddresses,
+} from "./auth-tools.js";
 import { z } from "zod";
 
 const GetBasketSchema = z.object({
@@ -236,6 +243,23 @@ server.tool(
   async ({ productId, shoppingListId }) => {
     try {
       const result = await removeFromBasket({ productId, shoppingListId });
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_addresses",
+  "Get the user's saved delivery and billing addresses. Requires authentication.",
+  {},
+  async () => {
+    try {
+      const result = await getAddresses();
       return { content: [{ type: "text", text: result }] };
     } catch (error) {
       return {
