@@ -253,6 +253,48 @@ export async function getOrders(args: { status?: OrderStatus; page?: number } = 
   );
 }
 
+/**
+ * Returns the URL the user should open in their browser to review the basket
+ * and complete checkout. Order placement requires payment confirmation in a
+ * real browser (Datatrans 3DS / saved-card prompt), so we hand off rather than
+ * try to automate the money step. Includes a basket summary for the LLM.
+ */
+export async function getCheckoutLink(): Promise<string> {
+  const shoppingListId = await resolveShoppingListId();
+  const data = (await api(
+    "GET",
+    `/shopping-list/public/v2/list/details?shoppingListId=${shoppingListId}`,
+    undefined,
+    { creds: credsFromEnv() }
+  )) as BasketResponse;
+  const items = (data.categories ?? []).flatMap((c) => c.items ?? []);
+  if (items.length === 0) {
+    return JSON.stringify(
+      { ok: false, message: "Basket is empty. Add items with add_to_basket before checkout." },
+      null,
+      2
+    );
+  }
+  const total = data.totals?.onlineTotal?.estimatedTotal;
+  const minOk = data.totals?.onlineTotal?.minimumOrderValueReached ?? true;
+  const freeDelivery = data.totals?.onlineTotal?.freeDelivery;
+  return JSON.stringify(
+    {
+      ok: true,
+      itemCount: items.length,
+      onlineTotal: total,
+      freeDelivery,
+      minimumOrderValueReached: minOk,
+      checkoutUrl: "https://www.migros.ch/en?context=ecommerce",
+      message: minOk
+        ? `Open the checkout URL in your browser to confirm address, delivery slot, and payment, then click "Place order".`
+        : `Basket below minimum online order value. Add more items, then re-run get_checkout_link.`,
+    },
+    null,
+    2
+  );
+}
+
 /** Fetch the full details of one order by its id (numeric, e.g. from get_orders). */
 export async function getOrderDetails(args: { orderId: string | number }): Promise<string> {
   const data = await api(

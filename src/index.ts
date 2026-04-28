@@ -26,6 +26,7 @@ import {
   getAddresses,
   getOrders,
   getOrderDetails,
+  getCheckoutLink,
 } from "./auth-tools.js";
 import { z } from "zod";
 
@@ -310,6 +311,23 @@ server.tool(
   async ({ orderId }) => {
     try {
       const result = await getOrderDetails({ orderId });
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_checkout_link",
+  "Return the URL the user should open in their browser to complete checkout (review basket, confirm address/slot, pay). Order placement requires payment confirmation in a real browser, so this tool hands off rather than firing the order automatically. Returns a basket summary alongside the URL. Requires authentication.",
+  {},
+  async () => {
+    try {
+      const result = await getCheckoutLink();
       return { content: [{ type: "text", text: result }] };
     } catch (error) {
       return {
