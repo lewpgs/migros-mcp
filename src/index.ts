@@ -24,6 +24,8 @@ import {
   updateBasketQuantity,
   removeFromBasket,
   getAddresses,
+  getOrders,
+  getOrderDetails,
 } from "./auth-tools.js";
 import { z } from "zod";
 
@@ -54,6 +56,20 @@ const UpdateBasketQuantitySchema = z.object({
 const RemoveFromBasketSchema = z.object({
   productId: z.string().describe("Product UID to remove from the basket."),
   shoppingListId: z.number().optional(),
+});
+
+const GetOrdersSchema = z.object({
+  status: z
+    .enum(["PENDING", "DELIVERED", "CANCELLED", "ALL"])
+    .optional()
+    .describe("Filter by order status. Default: ALL."),
+  page: z.number().int().min(0).optional().describe("0-based page number. Default: 0."),
+});
+
+const GetOrderDetailsSchema = z.object({
+  orderId: z
+    .union([z.string(), z.number()])
+    .describe("Order id (numeric). Get from get_orders."),
 });
 
 const server = new McpServer({
@@ -260,6 +276,40 @@ server.tool(
   async () => {
     try {
       const result = await getAddresses();
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_orders",
+  "List the user's online orders, paginated, filtered by status. Use to find an order id, then call get_order_details. Requires authentication.",
+  GetOrdersSchema.shape,
+  async ({ status, page }) => {
+    try {
+      const result = await getOrders({ status, page });
+      return { content: [{ type: "text", text: result }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_order_details",
+  "Fetch the full details of a single order by id. Requires authentication.",
+  GetOrderDetailsSchema.shape,
+  async ({ orderId }) => {
+    try {
+      const result = await getOrderDetails({ orderId });
       return { content: [{ type: "text", text: result }] };
     } catch (error) {
       return {
