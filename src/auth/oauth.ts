@@ -4,11 +4,10 @@ import type { AxiosInstance, AxiosResponse } from "axios";
 import type { Session } from "./cookies.js";
 import { cookieHeader, ingestSetCookie } from "./cookies.js";
 
-// IMPORTANT: per-host User-Agent. Akamai on www.migros.ch rejects Chrome but
-// accepts this Firefox/Linux UA (same approach as migros-api-wrapper). The login
-// origin uses Cloudflare which is more permissive and accepts Chrome.
-const UA_LOGIN = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
-const UA_WWW = "Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0";
+// User-Agent matters at the Cloudflare edge: a Chrome UA from Node gets
+// blocked on www.migros.ch. This Firefox/Linux UA (borrowed from
+// migros-api-wrapper) passes both www.migros.ch and login.migros.ch.
+const UA = "Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0";
 
 const REDIRECT_URI = "https://www.migros.ch/m-login-silent-login-redirect.html";
 
@@ -24,13 +23,9 @@ export function client(): AxiosInstance {
   return _client;
 }
 
-export function uaFor(host: string): string {
-  return host === "www.migros.ch" ? UA_WWW : UA_LOGIN;
-}
-
 export function uniformHeaders(host: string, session: Session, extra: Record<string, string> = {}): Record<string, string> {
   return {
-    "User-Agent": uaFor(host),
+    "User-Agent": UA,
     "Accept-Language": "en-US,en;q=0.9",
     "Accept-Encoding": "gzip, deflate, br",
     Cookie: cookieHeader(session, host),
