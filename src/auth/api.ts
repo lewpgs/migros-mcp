@@ -2,6 +2,7 @@ import type { AxiosResponse } from "axios";
 import { client, silentOAuth, uniformHeaders } from "./oauth.js";
 import { ingestSetCookie, loadSession, saveSession, type Session } from "./cookies.js";
 import { getJwt } from "./index.js";
+import { isRateLimited, RateLimitError } from "./rate-limit.js";
 import type { Credentials } from "./login.js";
 
 const BASE = "https://www.migros.ch";
@@ -67,14 +68,28 @@ export async function api(
 
   // Token rejected? Force a silent refresh and retry once.
   if (r.status === 401) {
+    session = loadSession();
+    // Never hammer the rate-limited host: if a cooldown is active, skip the
+    // refresh entirely and surface a clear error instead of firing another
+    // login-host request (which would 429 and extend the throttle).
+    if (isRateLimited(session)) {
+      const until = session.rateLimitedUntil
+        ? new Date(session.rateLimitedUntil).toISOString()
+        : "unknown time";
+      throw new Error(
+        `${method} ${path} -> 401 (token rejected, but login.migros.ch is rate-limited until ${until} — cannot refresh)`
+      );
+    }
     try {
-      session = loadSession();
       jwt = await silentOAuth(session);
       saveSession(session);
       r = await makeRequest(method, path, body, jwt, language, session);
       ingestSetCookie(session, "www.migros.ch", r.headers["set-cookie"]);
       saveSession(session);
     } catch (e) {
+      // Rate-limit errors should always surface — swallowing them hides the
+      // cooldown from the caller and defeats the cascade-prevention logic.
+      if (e instanceof RateLimitError) throw e;
       // Silent refresh failed (cookies actually expired). Surface the original
       // 401 since that's more actionable than the silent-refresh error.
     }
