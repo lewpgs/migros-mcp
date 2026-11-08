@@ -1,0 +1,240 @@
+# Prepares a release when a version tag such as v1.2.3 is pushed.
+#
+#   build      runs the tests and packs the npm package (no secrets)
+#   installer  turns that package into the Claude Desktop installer, migros-mcp.mcpb
+#   publish    stages the same package on npm with trusted publishing (OIDC)
+#              and provenance; no npm token is stored anywhere
+#   release    creates a draft GitHub release for the tag, with the installer
+#
+# Nothing reaches users until a maintainer approves the staged version on
+# npmjs.com (with 2FA) and publishes the draft release on GitHub.
+#
+# "Run workflow" on the Actions tab runs build and installer only, as a test.
+# Nothing is staged then, and the installer can be downloaded from the run.
+#
+# On npmjs.com the package's trusted publisher names this repository, the
+# workflow file release.yml and the environment npm, and allows staging only.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      tarball: ${{ steps.pack.outputs.tarball }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the version numbers agree
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          V=$(node -p "require('./package.json').version")
+          [ "$(node -p "require('./manifest.json').version")" = "$V" ] || fail "manifest.json does not say version $V"
+          [ "$(node -p "require('./package-lock.json').version")" = "$V" ] || fail "package-lock.json does not say version $V"
+          [ "$(node -p "require('./package-lock.json').packages[''].version")" = "$V" ] || fail "package-lock.json (packages) does not say version $V"
+          grep -qF "version: \"$V\"" src/index.ts || fail "src/index.ts does not say version $V"
+          awk -v h="## [$V]" 'index($0, h) == 1 { found = 1 } END { exit !found }' CHANGELOG.md || fail "CHANGELOG.md has no entry for $V"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "tag $GITHUB_REF_NAME is not of the form v1.2.3"
+            [ "$GITHUB_REF_NAME" = "v$V" ] || fail "tag $GITHUB_REF_NAME does not match package.json version $V"
+            git fetch --quiet --no-tags origin +refs/heads/main:refs/remotes/origin/main
+            git merge-base --is-ancestor "$GITHUB_SHA" origin/main || fail "tag $GITHUB_REF_NAME points at a commit that is not on main"
+          fi
+          echo "Version $V"
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Pack the npm package
+        id: pack
+        run: |
+          mkdir out
+          npm pack --ignore-scripts --pack-destination out
+          TARBALL="migros-mcp-$(node -p "require('./package.json').version").tgz"
+          [ -f "out/$TARBALL" ] || { echo "::error::npm pack did not write out/$TARBALL"; exit 1; }
+          SHA256=$(sha256sum "out/$TARBALL" | cut -d' ' -f1)
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "$TARBALL sha256 $SHA256"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-package
+          path: out/${{ steps.pack.outputs.tarball }}
+          if-no-files-found: error
+          retention-days: 30
+
+  installer:
+    name: Build the Claude Desktop installer
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-package
+          path: pkg
+
+      # The installer holds the npm package's files (README, package.json and
+      # the compiled dist folder without source maps or type files), the
+      # manifest, and the runtime dependencies at the versions in the lockfile.
+      - name: Lay out the installer folder
+        env:
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          echo "$SHA256  pkg/$TARBALL" | sha256sum --check --strict -
+          mkdir bundle
+          tar -xzf "pkg/$TARBALL" -C bundle --strip-components=1
+          cp manifest.json package-lock.json .mcpbignore bundle/
+          cd bundle
+          npm ci --omit=dev --ignore-scripts
+          rm package-lock.json
+          find dist -type f \( -name '*.map' -o -name '*.d.ts' \) -delete
+
+      - name: Pack the installer
+        env:
+          npm_config_ignore_scripts: 'true'
+        run: |
+          npx --yes @anthropic-ai/mcpb@2.1.2 pack bundle migros-mcp.mcpb
+          sha256sum migros-mcp.mcpb
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: installer
+          path: migros-mcp.mcpb
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Stage on npm
+    needs: [build, installer]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/migros-mcp
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-package
+          path: pkg
+
+      - name: Check this is the package that was tested
+        env:
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          SHA256: ${{ needs.build.outputs.sha256 }}
+        run: echo "$SHA256  pkg/$TARBALL" | sha256sum --check --strict -
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Check npm supports staged trusted publishing
+        run: |
+          v=$(npm --version)
+          IFS=. read -r major minor _ <<< "$v"
+          if (( major < 11 || (major == 11 && minor < 15) )); then
+            echo "::error::npm $v is too old for staged trusted publishing (needs 11.15.0 or newer)"
+            exit 1
+          fi
+          echo "npm $v"
+
+      # Verbose, so a trusted publisher mismatch shows npm's reason in the log.
+      - name: Stage
+        env:
+          TARBALL: ${{ needs.build.outputs.tarball }}
+        run: npm stage publish "./pkg/$TARBALL" --provenance --access public --ignore-scripts --loglevel verbose
+
+  release:
+    name: Draft GitHub release
+    needs: publish
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: installer
+          path: installer
+
+      # The draft's note is the version's CHANGELOG entry, and can be edited
+      # before publishing. If a release for the tag already exists, only the
+      # installer is uploaded to it.
+      - name: Create the draft release with the installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          awk -v h="## [$V]" 'index($0, h) == 1 { f = 1; next } f && /^## \[/ { exit } f' CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "::error::CHANGELOG.md has no entry for $V"; exit 1; }
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" installer/migros-mcp.mcpb --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" installer/migros-mcp.mcpb \
+              --draft --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes.md
+          fi
+          {
+            echo "### migros-mcp $V is staged, not released yet"
+            echo
+            echo "1. Approve it on npmjs.com: package page, Staged Packages tab (asks for 2FA)."
+            echo "2. Publish the draft release on GitHub: https://github.com/$GITHUB_REPOSITORY/releases"
+          } >> "$GITHUB_STEP_SUMMARY"
