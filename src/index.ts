@@ -95,7 +95,7 @@ register(server, "get_recipe_details",
   GetRecipeDetailsSchema.shape, (args) => getRecipeDetails(args));
 
 register(server, "get_recipe_products",
-  "Fetch the Migros products needed for a Migusto recipe — returns product UIDs you can pass directly to add_to_basket. Bridges recipes to shopping. Use the recipe ID from search_recipes (NOT the slug).",
+  "Fetch the Migros products Migusto suggests for a recipe, with name, price and the product UID that add_to_basket takes. Bridges recipes to shopping. Use the recipe ID from search_recipes (NOT the slug). Ingredients without a suggested product: use search_products.",
   GetRecipeProductsSchema.shape, (args) => getRecipeProducts(args));
 
 // --- Authenticated: account ---

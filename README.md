@@ -134,7 +134,7 @@ If you've **explicitly pinned** a version in your config (e.g. `migros-mcp@0.3.0
 | `get_promotions` | Search current Migros promotions and deals. |
 | `search_recipes` | Search Migusto (Migros' recipe site) by query and/or ingredients. German/French/Italian only. |
 | `get_recipe_details` | Full recipe by slug: ingredients, instructions, photos, nutrition. |
-| `get_recipe_products` | Migros product UIDs for a recipe, ready to pass straight to `add_to_basket`. |
+| `get_recipe_products` | The Migros products Migusto suggests for a recipe, with name, price and the UID to pass straight to `add_to_basket`. |
 
 ### Authenticated (require credentials)
 

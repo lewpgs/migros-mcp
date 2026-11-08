@@ -1,6 +1,6 @@
-import https from "node:https";
-import axios from "axios";
-import type { AxiosInstance } from "axios";
+import { defaultPost, migrosHeaders, postMigros, type Post } from "./http.js";
+
+export type { Post };
 
 /**
  * The Migros Online (home delivery) catalogue.
@@ -13,7 +13,6 @@ import type { AxiosInstance } from "axios";
  * Both calls are anonymous and take the same guest token as the wrapper.
  */
 
-const BASE = "https://www.migros.ch";
 const SEARCH_PATH = "/product-display/public/v2/products/search";
 const CARDS_PATH = "/product-display/public/v4/product-cards";
 
@@ -68,46 +67,8 @@ export function onlineCardsBody(uids: string[], today: Date = new Date()): Recor
 }
 
 // ---------------------------------------------------------------------------
-// Transport
+// Requests
 // ---------------------------------------------------------------------------
-
-export type Post = (url: string, body: unknown, headers: Record<string, string>) => Promise<{ status: number; data: unknown }>;
-
-let _client: AxiosInstance | null = null;
-
-/** Same transport as migros-api-wrapper's anonymous calls (TLS 1.3), with a timeout. */
-const defaultPost: Post = async (url, body, headers) => {
-  if (!_client) {
-    _client = axios.create({
-      httpsAgent: new https.Agent({ minVersion: "TLSv1.3" }),
-      timeout: 10_000,
-      validateStatus: () => true,
-      maxRedirects: 0,
-    });
-  }
-  const r = await _client.post(url, body, { headers });
-  return { status: r.status, data: r.data };
-};
-
-function headersFor(token: string, language?: string): Record<string, string> {
-  const headers: Record<string, string> = {
-    accept: "application/json, text/plain, */*",
-    "content-type": "application/json",
-    leshopch: token,
-  };
-  // `language` comes from the AI as free text: only pass a plain code on as a header.
-  if (language && /^[a-z]{2}$/.test(language)) headers["migros-language"] = language;
-  // Honour the wrapper's own User-Agent override, like its anonymous calls do.
-  const ua = process.env.MIGROS_API_WRAPPER_USERAGENT;
-  if (ua) headers["User-Agent"] = ua;
-  return headers;
-}
-
-async function postJson(post: Post, path: string, body: unknown, headers: Record<string, string>): Promise<unknown> {
-  const r = await post(`${BASE}${path}`, body, headers);
-  if (r.status < 200 || r.status >= 300) throw new Error(`POST ${path} -> ${r.status}`);
-  return r.data;
-}
 
 /** Search the online shop. Returns product uids. Throws on a non-2xx answer. */
 export async function searchOnline(
@@ -116,7 +77,7 @@ export async function searchOnline(
   token: string,
   post: Post = defaultPost
 ): Promise<string[]> {
-  const data = await postJson(post, SEARCH_PATH, onlineSearchBody(query, language), headersFor(token, language));
+  const data = await postMigros(post, SEARCH_PATH, onlineSearchBody(query, language), migrosHeaders(token, language));
   return productIdsFromOnlineSearch(data);
 }
 
@@ -124,7 +85,7 @@ export async function searchOnline(
 export async function getOnlineCards(uids: string[], token: string, post: Post = defaultPost): Promise<unknown[]> {
   const numeric = uids.filter((id) => /^\d+$/.test(id));
   if (numeric.length === 0) return [];
-  const data = await postJson(post, CARDS_PATH, onlineCardsBody(numeric), headersFor(token));
+  const data = await postMigros(post, CARDS_PATH, onlineCardsBody(numeric), migrosHeaders(token));
   return Array.isArray(data) ? data : [];
 }
 

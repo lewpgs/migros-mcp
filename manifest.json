@@ -56,7 +56,7 @@
     { "name": "get_promotions", "description": "Browse current promotions and deals" },
     { "name": "search_recipes", "description": "Search Migusto (Migros' recipe site) by query and/or ingredients (de/fr/it)" },
     { "name": "get_recipe_details", "description": "Full Migusto recipe by slug: ingredients, instructions, photos" },
-    { "name": "get_recipe_products", "description": "Migros product UIDs for a Migusto recipe — feed directly to add_to_basket" },
+    { "name": "get_recipe_products", "description": "Migros products Migusto suggests for a recipe, with the UIDs add_to_basket takes" },
     { "name": "authenticate", "description": "Log in with the current six-digit 2FA code, for setups without a stored TOTP secret" },
     { "name": "get_profile", "description": "(Auth) Logged-in customer's profile" },
     { "name": "get_addresses", "description": "(Auth) Saved delivery and billing addresses" },
