@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- Dependencies refreshed within their existing version ranges (`npm audit fix`), which clears 16 of 19 known advisories. Most were in parts of the MCP SDK this server doesn't use (its HTTP server), and npx installs already picked up the newer versions on their own. The Claude Desktop installer is built from the lockfile, so it gets them with the next release. The three left need breaking upgrades (zod 4) or come through migros-api-wrapper, and are low risk here.
+
+### Added
+
+- GitHub Actions check: every pull request and every push to main is built and tested on Node 22 and 24, read-only and without secrets.
+- A test that starts the server and checks it offers exactly the tools listed in `manifest.json`.
+
 ## [0.4.1] - 2026-11-08
 
 ### Fixed
