@@ -6,11 +6,11 @@ All notable changes to this project are documented here. The format is based on 
 
 ### Added
 
-- **`authenticate` tool** — accepts a current six-digit TOTP code from the agent and establishes the cached Migros session.
+- **`authenticate` tool**: log in with the current six-digit 2FA code instead of storing the TOTP seed. The AI asks the user for the code, or reads it from a password manager. `MIGROS_TOTP_SECRET` keeps working exactly as before.
 
 ### Changed
 
-- Authentication no longer requires a static TOTP seed in environment variables. Cached sessions are reused silently; expired or rejected codes produce `fresh_code_required` so the agent can retrieve a fresh code.
+- `MIGROS_TOTP_SECRET` is now optional for accounts with 2FA. Without it, authenticated tools return `fresh_code_required` when a login is needed. The MCP remembers that the account needs a code, so it doesn't send the password to Migros until it has one. A rejected code reports Migros' own reason.
 
 ### Fixed
 - **429 Too Many Requests handling.** When `login.migros.ch` rate-limits the MCP (Cloudflare), the auth layer now:

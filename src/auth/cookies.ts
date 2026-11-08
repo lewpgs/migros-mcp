@@ -24,6 +24,8 @@ export interface Session {
   rateLimitReason?: string;
   /** Consecutive 429s so far, used to step up the fallback backoff. */
   rateLimitAttempts?: number;
+  /** The last full login hit a 2FA step. Not a secret, just a yes/no. */
+  twoFactorRequired?: boolean;
 }
 
 const EMPTY: Session = { cookies: {}, jwt: null, jwtExp: 0 };
@@ -40,6 +42,7 @@ export function loadSession(): Session {
       rateLimitedUntil: parsed.rateLimitedUntil,
       rateLimitReason: parsed.rateLimitReason,
       rateLimitAttempts: parsed.rateLimitAttempts,
+      twoFactorRequired: parsed.twoFactorRequired,
     };
   } catch (err) {
     // Missing file (ENOENT) or unreadable: treat as empty.

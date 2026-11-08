@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { AxiosResponse } from "axios";
 import type { Session } from "./cookies.js";
 import { ingestSetCookie } from "./cookies.js";
@@ -7,17 +8,74 @@ import { parseRetryAfter, RateLimitError, setRateLimited } from "./rate-limit.js
 export interface Credentials {
   email: string;
   password: string;
-  /** Current six-digit TOTP code. Required only when the server asks for 2FA. */
+  /**
+   * Base32-encoded TOTP seed (MIGROS_TOTP_SECRET). When set, the MCP makes the
+   * 2FA code itself and re-logins need no help.
+   */
+  totpSecret?: string;
+  /**
+   * Current six-digit TOTP code passed to the `authenticate` tool. The option
+   * for people who don't want to store the seed. Used before the seed if both
+   * are present.
+   */
   totpCode?: string;
 }
 
 const LOGIN = "https://login.migros.ch";
 
 export class FreshCodeRequiredError extends Error {
-  constructor(message = "fresh_code_required: provide a current six-digit TOTP code") {
+  constructor(
+    message = "fresh_code_required: this Migros account needs a 2FA code. Ask the user for the current " +
+      "six-digit code from their authenticator app and call the authenticate tool with it."
+  ) {
     super(message);
     this.name = "FreshCodeRequiredError";
   }
+}
+
+/**
+ * RFC 6238 TOTP code from a base32-encoded shared secret.
+ * Defaults match Google Authenticator / 1Password / Authy: SHA-1, 30s, 6 digits.
+ */
+export function totpFromSecret(
+  secretBase32: string,
+  time: number = Math.floor(Date.now() / 1000),
+  step = 30,
+  digits = 6
+): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const cleaned = secretBase32.replace(/=+$/g, "").replace(/\s+/g, "").toUpperCase();
+  let bits = "";
+  for (const c of cleaned) {
+    const v = alphabet.indexOf(c);
+    if (v < 0) throw new Error(`invalid base32 char in TOTP secret: ${c}`);
+    bits += v.toString(2).padStart(5, "0");
+  }
+  const key = Buffer.alloc(Math.floor(bits.length / 8));
+  for (let i = 0; i < key.length; i++) {
+    key[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+  }
+
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(time / step)));
+  const hmac = crypto.createHmac("sha1", key).update(counter).digest();
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const slice = hmac.readUInt32BE(offset) & 0x7fffffff;
+  return String(slice % 10 ** digits).padStart(digits, "0");
+}
+
+/**
+ * The code to submit at the 2FA step: the one passed to `authenticate` if
+ * there is one, else one made from the stored seed. Throws
+ * FreshCodeRequiredError when there is neither.
+ */
+export function otpCodeFor(creds: Credentials, time?: number): string {
+  if (creds.totpCode) {
+    if (!/^\d{6}$/.test(creds.totpCode)) throw new Error("totpCode must be exactly six digits");
+    return creds.totpCode;
+  }
+  if (creds.totpSecret) return totpFromSecret(creds.totpSecret, time);
+  throw new FreshCodeRequiredError();
 }
 
 function findCsrf(html: string): string {
@@ -127,19 +185,27 @@ export async function fullLogin(session: Session, creds: Credentials): Promise<s
 
   // 7. If a 2FA step is in the chain, handle it. Otherwise skip.
   const needsOtp = /\/login\/(authenticator|second|totp|otp)/.test(nextUrl);
+  // Remembered in the session so a later login without seed or code can stop
+  // before sending the password (see getJwt).
+  session.twoFactorRequired = needsOtp;
   if (needsOtp) {
-    if (!creds.totpCode) throw new FreshCodeRequiredError();
-    if (!/^\d{6}$/.test(creds.totpCode)) {
-      throw new Error("totpCode must be exactly six digits");
-    }
+    const code = otpCodeFor(creds);
     r = await get(nextUrl, session);
     csrf = findCsrf(r.data as string);
     const otpAction = (r.data as string).match(/<form[^>]+action="([^"]*)"/)?.[1] || nextUrl;
     const otpUrl = new URL(otpAction, nextUrl).toString();
-    r = await postForm(otpUrl, session, { _csrf: csrf, code: creds.totpCode });
+    r = await postForm(otpUrl, session, { _csrf: csrf, code });
     nextUrl = locationOf(r, LOGIN);
     if (!nextUrl) {
-      throw new FreshCodeRequiredError("fresh_code_required: Migros rejected the TOTP code; retrieve a new code and retry once");
+      const why = findError(r.data as string) ?? `status ${r.status}`;
+      if (creds.totpCode) {
+        // A code typed in or read from a password manager may simply have
+        // expired: ask for a new one, and keep the real reason in the message.
+        throw new FreshCodeRequiredError(
+          `fresh_code_required: Migros did not accept the code (${why}). Get a new code and call authenticate once more.`
+        );
+      }
+      throw new Error(`OTP step failed: ${why}`);
     }
   }
 

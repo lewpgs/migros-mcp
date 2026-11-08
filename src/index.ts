@@ -99,7 +99,7 @@ register(server, "get_recipe_products",
 // --- Authenticated: account ---
 
 register(server, "authenticate",
-  "Authenticate to Migros using the current six-digit TOTP code from the agent's configured secret provider. Call this when an authenticated tool reports fresh_code_required. Omit totpCode only when reusing an existing cached session. The code is never persisted or returned.",
+  "Log in to Migros with the current six-digit 2FA code from the user's authenticator app (ask the user for it, or read it from a password manager you have access to). Only needed when an authenticated tool reports fresh_code_required, which happens when no TOTP secret is configured. Omit totpCode to reuse a cached session, or if the account has no 2FA. The code is never stored or returned.",
   AuthenticateSchema.shape, (args) => authenticate(args));
 
 register(server, "get_profile",

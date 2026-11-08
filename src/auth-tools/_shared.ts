@@ -8,5 +8,5 @@ export function credsFromEnv(totpCode?: string): Credentials | undefined {
   const email = process.env.MIGROS_EMAIL;
   const password = process.env.MIGROS_PASSWORD;
   if (!email || !password) return undefined;
-  return { email, password, totpCode };
+  return { email, password, totpSecret: process.env.MIGROS_TOTP_SECRET || undefined, totpCode };
 }

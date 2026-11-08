@@ -42,6 +42,7 @@ describe("session cooldown persistence", () => {
       rateLimitedUntil: Date.now() + 3600_000,
       rateLimitReason: "429 from POST /login/email",
       rateLimitAttempts: 2,
+      twoFactorRequired: true,
     };
     saveSession(session);
 
@@ -49,6 +50,7 @@ describe("session cooldown persistence", () => {
     assert.equal(loaded.rateLimitedUntil, session.rateLimitedUntil, "cooldown end must survive restart");
     assert.equal(loaded.rateLimitReason, session.rateLimitReason, "cooldown reason must survive restart");
     assert.equal(loaded.rateLimitAttempts, 2, "backoff step must survive restart");
+    assert.equal(loaded.twoFactorRequired, true, "2FA flag must survive restart");
   });
 
   it("keeps cooldown fields when the session has no cookies", () => {

@@ -9,7 +9,7 @@ import { credsFromEnv } from "./_shared.js";
  * written to the persisted session.
  */
 export async function authenticate(args: { totpCode?: string } = {}): Promise<string> {
-  await getJwt(credsFromEnv(args.totpCode));
+  await getJwt(credsFromEnv(args.totpCode), { tryLoginWithoutCode: true });
   return JSON.stringify(
     {
       authenticated: true,

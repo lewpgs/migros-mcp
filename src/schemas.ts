@@ -65,7 +65,7 @@ export const AuthenticateSchema = z.object({
     .string()
     .regex(/^\d{6}$/, "totpCode must be exactly six digits")
     .optional()
-    .describe("Current six-digit TOTP code. Omit only when an existing cached session should be reused."),
+    .describe("Current six-digit TOTP code. Omit to reuse a cached session, or if the account has no 2FA."),
 });
 
 // ---------------------------------------------------------------------------

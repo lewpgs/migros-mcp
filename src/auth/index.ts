@@ -1,6 +1,6 @@
 import { loadSession, saveSession, type Session } from "./cookies.js";
 import { getJwt as getJwtFromOauth, silentOAuth, JWT_BUFFER_SECONDS } from "./oauth.js";
-import { fullLogin, type Credentials } from "./login.js";
+import { fullLogin, FreshCodeRequiredError, type Credentials } from "./login.js";
 import {
   isRateLimited,
   RateLimitError,
@@ -32,7 +32,16 @@ export { silentOAuth, fullLogin };
  * Throws if `creds` is missing AND no cookies are cached (first-time install
  * with no env vars set).
  */
-export async function getJwt(creds?: Credentials): Promise<string> {
+export interface GetJwtOptions {
+  /**
+   * Try a full login even when the account is known to need a 2FA code and no
+   * seed or code was given. Set by the `authenticate` tool, so an account that
+   * has since turned 2FA off can still log in.
+   */
+  tryLoginWithoutCode?: boolean;
+}
+
+export async function getJwt(creds?: Credentials, opts: GetJwtOptions = {}): Promise<string> {
   const session: Session = loadSession();
 
   // --- Rate-limit cooldown guard ---
@@ -81,9 +90,17 @@ export async function getJwt(creds?: Credentials): Promise<string> {
     if (!creds) {
       throw new Error(
         "no cached session and no credentials provided. " +
-          "Set MIGROS_EMAIL and MIGROS_PASSWORD, then call authenticate with a current six-digit totpCode."
+          "Set MIGROS_EMAIL and MIGROS_PASSWORD to enable login. If the account has 2FA, also set " +
+          "MIGROS_TOTP_SECRET, or call authenticate with the current six-digit code."
       );
     }
+  }
+
+  // Don't start a login that can't finish: if the last login needed a 2FA code
+  // and there is neither a stored seed nor a code, ask for the code before
+  // sending the password to Migros. Repeated half-logins get the IP blocked.
+  if (session.twoFactorRequired && !creds.totpSecret && !creds.totpCode && !opts.tryLoginWithoutCode) {
+    throw new FreshCodeRequiredError();
   }
 
   // --- Path 3: full credentialed login ---
@@ -101,6 +118,13 @@ export async function getJwt(creds?: Credentials): Promise<string> {
       // so one 429 isn't counted twice by the backoff.
       if (!isRateLimited(session)) setRateLimited(session, e.retryAfterSeconds, e.message);
       saveSession(session);
+    }
+    if (e instanceof FreshCodeRequiredError) {
+      // Remember that this account needs a code. Start from the saved session
+      // so the half-finished login's cookies aren't kept.
+      const saved = loadSession();
+      saved.twoFactorRequired = true;
+      saveSession(saved);
     }
     throw e;
   }
