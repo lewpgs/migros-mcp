@@ -1,0 +1,11 @@
+# Keep the Claude Desktop bundle to what the server needs at runtime.
+.claude/
+.git/
+.github/
+tests/
+tsconfig*.json
+*.mcpb
+*.log
+.env
+session.json
+curl.txt

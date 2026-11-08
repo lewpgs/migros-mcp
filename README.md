@@ -30,7 +30,7 @@ Search [Migros](https://www.migros.ch) products and (optionally) manage your bas
 - "Which Cumulus coupons do I have right now?"
 - "How many Cumulus points do I have?"
 
-The basket and order tools require your Migros account credentials. They're optional — if you skip them at install, the anonymous tools still work.
+The basket and order tools require your Migros account credentials. They're optional. If you skip them at install, the anonymous tools still work.
 
 ## Install
 
@@ -39,9 +39,9 @@ The basket and order tools require your Migros account credentials. They're opti
 1. Download [migros-mcp.mcpb](https://github.com/lewpgs/migros-mcp/releases/latest/download/migros-mcp.mcpb)
 2. Install it:
 
-   **macOS** — Double-click the file, or drag and drop it onto the Claude Desktop app icon
+   **macOS**: Double-click the file, or drag and drop it onto the Claude Desktop app icon
 
-   **Windows** — In Claude Desktop, go to File > Settings > Extensions > Advanced Settings > Install Extension and select the file
+   **Windows**: In Claude Desktop, go to File > Settings > Extensions > Advanced Settings > Install Extension and select the file
 
 3. Optional: enter your Migros email, password, and TOTP secret if you want the basket/order tools. Leave all three blank for anonymous access only. Credentials are stored in your OS keychain by Claude Desktop.
 
@@ -49,10 +49,10 @@ The basket and order tools require your Migros account credentials. They're opti
 
    How to find it:
 
-   - **If you saved it during enrollment** — copy it from your password manager. In 1Password / Bitwarden / Proton Pass, open the Migros entry, edit the OTP field, choose *"View one-time password secret"* (or similar). The string after `secret=` is what you want.
-   - **If you didn't save it** — Migros only shows the seed during initial 2FA setup, on the same screen as the QR code, in a box labeled *"Or enter the following key in the authenticator app:"*. Once enrollment completes, the seed is gone for good.
+   - **If you saved it during enrollment**: copy it from your password manager. In 1Password / Bitwarden / Proton Pass, open the Migros entry, edit the OTP field, choose *"View one-time password secret"* (or similar). The string after `secret=` is what you want.
+   - **If you didn't save it**: Migros only shows the seed during initial 2FA setup, on the same screen as the QR code, in a box labeled *"Or enter the following key in the authenticator app:"*. Once enrollment completes, the seed is gone for good.
 
-     To recover it: in Migros account settings, **remove** your existing 2FA, then **set it up again**. The new setup screen will show the new seed text below the QR code — copy it before completing enrollment, and re-add the new entry to your authenticator app.
+     To recover it: in Migros account settings, **remove** your existing 2FA, then **set it up again**. The new setup screen will show the new seed text below the QR code. Copy it before completing enrollment, and re-add the new entry to your authenticator app.
 
    Leave the field blank entirely if your Migros account doesn't have 2FA enabled.
 
@@ -84,8 +84,8 @@ claude mcp add migros \
 
 Add to your config:
 
-- **Claude Desktop** — `claude_desktop_config.json`
-- **Cursor** — `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global)
+- **Claude Desktop**: `claude_desktop_config.json`
+- **Cursor**: `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global)
 
 ```json
 {
@@ -114,7 +114,7 @@ MIGROS_EMAIL=... MIGROS_PASSWORD=... MIGROS_TOTP_SECRET=... npx migros-mcp   # a
 
 ## Updating
 
-The recommended install commands above use `npx -y migros-mcp` without pinning a version, so you auto-receive new releases. `npx` caches the package for ~7 days, so updates land on next launch within that window. To force-refresh sooner: `npm cache clean --force` and restart the host.
+The recommended install commands above use `npx -y migros-mcp` without pinning a version, so you auto-receive new releases. Recent npm versions check for the newest version each time `npx` starts, so an update lands the next time your MCP host starts the server. If it seems stuck on an old version, run `npm cache clean --force` and restart the host.
 
 If you've installed via the **drag-installed `.mcpb`** instead, Claude Desktop pins you to that specific version. Download the latest `.mcpb` from [Releases](https://github.com/lewpgs/migros-mcp/releases) and re-install to update. Your credentials in the OS keychain are preserved across re-installs.
 
@@ -134,7 +134,7 @@ If you've **explicitly pinned** a version in your config (e.g. `migros-mcp@0.3.0
 | `get_promotions` | Search current Migros promotions and deals. |
 | `search_recipes` | Search Migusto (Migros' recipe site) by query and/or ingredients. German/French/Italian only. |
 | `get_recipe_details` | Full recipe by slug: ingredients, instructions, photos, nutrition. |
-| `get_recipe_products` | Migros product UIDs for a recipe — feed directly into `add_to_basket`. |
+| `get_recipe_products` | Migros product UIDs for a recipe, ready to pass straight to `add_to_basket`. |
 
 ### Authenticated (require credentials)
 
@@ -162,7 +162,7 @@ If you've **explicitly pinned** a version in your config (e.g. `migros-mcp@0.3.0
 Use the [migros-api-wrapper](https://www.npmjs.com/package/migros-api-wrapper) which calls the same endpoints the Migros website uses internally. A guest token is fetched at startup and cached.
 
 ### Authenticated tools
-Use OAuth 2.0 against `login.migros.ch`. The first call runs a credentialed login (email → password → TOTP) and caches the resulting cookies + access token. Every 30 minutes the token is refreshed silently using cached cookies — no login form re-submission.
+Use OAuth 2.0 against `login.migros.ch`. The first call runs a credentialed login (email → password → TOTP) and caches the resulting cookies + access token. Every 30 minutes the token is refreshed silently using cached cookies, without submitting the login form again.
 
 With `MIGROS_TOTP_SECRET` set, the MCP makes the 2FA code itself. Without it, the AI passes the current code to `authenticate`: it asks the user, or reads it from a password manager it has access to (for example a 1Password MCP or the 1Password CLI). The code is used for that one login and is never stored or logged.
 
@@ -184,8 +184,8 @@ For safety, this MCP **does not** place orders programmatically. The `get_checko
 ## Known limitations
 
 - **2FA support is TOTP-only.** Accounts secured with a passkey (and no TOTP fallback) are not supported. If your Migros account uses passkey as the only second factor, add a TOTP authenticator app in Migros account settings, then provide the TOTP secret to this MCP, or pass the current code to `authenticate`.
-- **No automatic order placement.** See above — `get_checkout_link` hands off to your browser for the actual placement.
-- **Cloudflare rate limits.** The login host (`login.migros.ch`) sits behind Cloudflare bot detection. If the MCP triggers too many login attempts in quick succession (wrong password retries, repeated restarts without a cached session), the IP may be throttled. When this happens the MCP now sets a **cooldown** (respecting `Retry-After` headers or falling back to 30 s → 2 min → 10 min backoff) and **stops hitting the login host** until it clears. During cooldown, any **still-valid cached JWT keeps working** so your MCP tools may continue serving requests — only re-authentication is paused. If the cached JWT is also expired while rate-limited the MCP will surface a clear error with the cooldown deadline rather than silently retrying and worsening the throttle.
+- **No automatic order placement.** See above: `get_checkout_link` hands off to your browser for the actual placement.
+- **Cloudflare rate limits.** The login host (`login.migros.ch`) sits behind Cloudflare bot detection. If the MCP triggers too many login attempts in quick succession (wrong password retries, repeated restarts without a cached session), the IP may be throttled. When this happens the MCP now sets a **cooldown** (respecting `Retry-After` headers or falling back to 30 s → 2 min → 10 min backoff) and **stops hitting the login host** until it clears. During cooldown, any **still-valid cached JWT keeps working** so your MCP tools may continue serving requests. Only re-authentication is paused. If the cached JWT is also expired while rate-limited the MCP will surface a clear error with the cooldown deadline rather than silently retrying and worsening the throttle.
 
 ## Development
 
@@ -205,11 +205,11 @@ npx -y @modelcontextprotocol/inspector npx migros-mcp
 
 ## Disclaimers
 
-- **Unofficial** — Not affiliated with, endorsed by, or connected to Migros in any way.
-- **No official API** — Uses endpoints that power the Migros website. They are not documented or supported. Migros can change them without notice.
-- **Credentials** — When you provide credentials, they're used only to authenticate against `login.migros.ch`. A 6-digit code passed to `authenticate` is used for that one login and is never stored or logged. Resulting session cookies and access tokens are stored locally in your OS user config directory. They are never sent anywhere except Migros' own servers.
-- **No order placement** — This server does not place orders programmatically. Orders are completed in the user's own browser via the URL returned by `get_checkout_link`.
-- **Use at your own risk** — No guarantees of functionality, availability, or compatibility.
+- **Unofficial**: Not affiliated with, endorsed by, or connected to Migros in any way.
+- **No official API**: Uses endpoints that power the Migros website. They are not documented or supported. Migros can change them without notice.
+- **Credentials**: When you provide credentials, they're used only to authenticate against `login.migros.ch`. A 6-digit code passed to `authenticate` is used for that one login and is never stored or logged. Resulting session cookies and access tokens are stored locally in your OS user config directory. They are never sent anywhere except Migros' own servers.
+- **No order placement**: This server does not place orders programmatically. Orders are completed in the user's own browser via the URL returned by `get_checkout_link`.
+- **Use at your own risk**: No guarantees of functionality, availability, or compatibility.
 
 ## License
 
