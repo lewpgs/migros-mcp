@@ -3,6 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { register } from "./register.js";
+import { enableUpdateCheck } from "./update-check.js";
 import {
   SearchProductsSchema,
   GetProductDetailsSchema,
@@ -169,6 +170,7 @@ register(server, "get_cumulus_coupons",
 // ---------------------------------------------------------------------------
 
 async function main() {
+  enableUpdateCheck();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

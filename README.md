@@ -34,6 +34,8 @@ The basket and order tools require your Migros account credentials. They're opti
 
 ## Install
 
+migros-mcp runs on your own computer, so it works in apps that can start a program there: Claude Desktop, Claude Code, Cursor and similar. It doesn't work in claude.ai in a browser or in the Claude phone apps.
+
 ### Claude Desktop (recommended)
 
 1. Download [migros-mcp.mcpb](https://github.com/lewpgs/migros-mcp/releases/latest/download/migros-mcp.mcpb)
@@ -119,6 +121,8 @@ The recommended install commands above use `npx -y migros-mcp` without pinning a
 If you've installed via the **drag-installed `.mcpb`** instead, Claude Desktop pins you to that specific version. Download the latest `.mcpb` from [Releases](https://github.com/lewpgs/migros-mcp/releases) and re-install to update. Your credentials in the OS keychain are preserved across re-installs.
 
 If you've **explicitly pinned** a version in your config (e.g. `migros-mcp@0.3.0`), update by editing the version number or removing the pin entirely.
+
+**Update notice.** So that nobody stays on an old version without knowing, the server asks the npm registry for the newest version number about once a day, while you're using it. When a newer version is out, one answer a day ends with a short line saying so, with a link to this section. Nothing about you is sent: it's the same public lookup `npm` does (npm sees your IP address, as with any download). To turn it off: in Claude Desktop, untick *Tell me when a new version is out* in the extension's settings (Settings > Extensions). Anywhere else, set `MIGROS_MCP_UPDATE_CHECK=false` in the server's environment (the `env` block in your config, or `-e MIGROS_MCP_UPDATE_CHECK=false` with `claude mcp add`).
 
 ## Available tools
 

@@ -23,6 +23,8 @@ All notable changes to this project are documented here. The format is based on 
 
 ### Added
 
+- **Update notice.** The Claude Desktop installer (`.mcpb`) doesn't update itself, so its users didn't know when a fix was out. About once a day, while a tool is in use, the server now asks the npm registry for the latest version number, in the background. When a newer one is out, one tool result a day ends with a separate line saying so, with a link to the README's *Updating* section. Nothing about the user is sent, tools never wait for the check, and only a plain version number from the registry's answer is ever shown. To turn it off, untick the new *Tell me when a new version is out* box in the Claude Desktop installer's settings, or set `MIGROS_MCP_UPDATE_CHECK=false` anywhere else.
+- The README now says which apps it works in: apps on your own computer, not claude.ai in a browser or the phone apps.
 - GitHub Actions check: every pull request and every push to main is built and tested on Node 22 and 24, read-only and without secrets.
 - A test that starts the server and checks it offers exactly the tools listed in `manifest.json`.
 
