@@ -126,8 +126,8 @@ If you've **explicitly pinned** a version in your config (e.g. `migros-mcp@0.3.0
 
 | Tool | Description |
 |---|---|
-| `search_products` | Search Migros products by name or keyword. Returns product IDs. |
-| `get_product_details` | Full product info: nutrition, ingredients, allergens, price, ratings. |
+| `search_products` | Search Migros products by name or keyword, including products sold only online (such as "Partner" products). Returns product IDs. |
+| `get_product_details` | Full product info: nutrition, ingredients, allergens, price, ratings. Online-only products also get their online price and a Partner flag. |
 | `get_stock` | Check product availability at a specific Migros store. Updated once daily. |
 | `get_categories` | List all Migros product categories. |
 | `search_stores` | Find Migros stores by location with addresses and opening hours. |

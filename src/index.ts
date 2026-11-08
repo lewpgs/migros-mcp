@@ -61,7 +61,7 @@ const server = new McpServer({ name: "migros-mcp", version: "0.4.0" });
 // --- Anonymous: search & browse ---
 
 register(server, "search_products",
-  "Search Migros products by name or keyword. Returns product IDs that can be used with get_product_details.",
+  "Search Migros products by name or keyword, including products sold only in the Migros Online shop (such as 'Partner' products). Returns product IDs that can be used with get_product_details and add_to_basket.",
   SearchProductsSchema.shape, ({ query, language }) => searchProducts(query, language ?? "de"));
 
 register(server, "get_product_details",
