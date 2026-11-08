@@ -57,6 +57,18 @@ export const GetRecipeProductsSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Authentication
+// ---------------------------------------------------------------------------
+
+export const AuthenticateSchema = z.object({
+  totpCode: z
+    .string()
+    .regex(/^\d{6}$/, "totpCode must be exactly six digits")
+    .optional()
+    .describe("Current six-digit TOTP code. Omit only when an existing cached session should be reused."),
+});
+
+// ---------------------------------------------------------------------------
 // Authenticated: cart
 // ---------------------------------------------------------------------------
 

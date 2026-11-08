@@ -20,8 +20,7 @@
       "args": ["${__dirname}/dist/index.js"],
       "env": {
         "MIGROS_EMAIL": "${user_config.email}",
-        "MIGROS_PASSWORD": "${user_config.password}",
-        "MIGROS_TOTP_SECRET": "${user_config.totp_secret}"
+        "MIGROS_PASSWORD": "${user_config.password}"
       }
     }
   },
@@ -38,13 +37,6 @@
       "description": "Your migros.ch password. Leave blank to skip authenticated tools.",
       "sensitive": true,
       "required": false
-    },
-    "totp_secret": {
-      "type": "string",
-      "title": "Migros TOTP Secret (optional)",
-      "description": "The static base32 seed (~32 characters of A-Z2-7) you got when setting up your authenticator app. NOT the rotating 6-digit code. From your password manager's 'view OTP secret' option, or by re-enrolling a new authenticator and revealing the seed text. Leave blank if you have no 2FA.",
-      "sensitive": true,
-      "required": false
     }
   },
   "tools": [
@@ -57,6 +49,7 @@
     { "name": "search_recipes", "description": "Search Migusto (Migros' recipe site) by query and/or ingredients (de/fr/it)" },
     { "name": "get_recipe_details", "description": "Full Migusto recipe by slug: ingredients, instructions, photos" },
     { "name": "get_recipe_products", "description": "Migros product UIDs for a Migusto recipe — feed directly to add_to_basket" },
+    { "name": "authenticate", "description": "Authenticate with a current six-digit TOTP code; reuses a cached session when possible" },
     { "name": "get_profile", "description": "(Auth) Logged-in customer's profile" },
     { "name": "get_addresses", "description": "(Auth) Saved delivery and billing addresses" },
     { "name": "get_basket", "description": "(Auth) Items currently in the user's basket" },

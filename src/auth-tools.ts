@@ -4,6 +4,7 @@
  * keep each file focused and easy to scan.
  */
 export { getProfile, getAddresses } from "./auth-tools/account.js";
+export { authenticate } from "./auth-tools/authenticate.js";
 export {
   getBasket,
   addToBasket,

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Added
+
+- **`authenticate` tool** — accepts a current six-digit TOTP code from the agent and establishes the cached Migros session.
+
+### Changed
+
+- Authentication no longer requires a static TOTP seed in environment variables. Cached sessions are reused silently; expired or rejected codes produce `fresh_code_required` so the agent can retrieve a fresh code.
+
 ### Fixed
 - **429 Too Many Requests handling.** When `login.migros.ch` rate-limits the MCP (Cloudflare), the auth layer now:
   - Parses `Retry-After` headers and applies a cooldown persisted in `session.json`.

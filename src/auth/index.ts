@@ -81,7 +81,7 @@ export async function getJwt(creds?: Credentials): Promise<string> {
     if (!creds) {
       throw new Error(
         "no cached session and no credentials provided. " +
-          "Set MIGROS_EMAIL, MIGROS_PASSWORD, and MIGROS_TOTP_SECRET env vars to enable login."
+          "Set MIGROS_EMAIL and MIGROS_PASSWORD, then call authenticate with a current six-digit totpCode."
       );
     }
   }

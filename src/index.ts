@@ -12,6 +12,7 @@ import {
   SearchRecipesSchema,
   GetRecipeDetailsSchema,
   GetRecipeProductsSchema,
+  AuthenticateSchema,
   GetBasketSchema,
   AddToBasketSchema,
   UpdateBasketQuantitySchema,
@@ -33,6 +34,7 @@ import {
   getRecipeProducts,
 } from "./tools.js";
 import {
+  authenticate,
   getProfile,
   getBasket,
   addToBasket,
@@ -95,6 +97,10 @@ register(server, "get_recipe_products",
   GetRecipeProductsSchema.shape, (args) => getRecipeProducts(args));
 
 // --- Authenticated: account ---
+
+register(server, "authenticate",
+  "Authenticate to Migros using the current six-digit TOTP code from the agent's configured secret provider. Call this when an authenticated tool reports fresh_code_required. Omit totpCode only when reusing an existing cached session. The code is never persisted or returned.",
+  AuthenticateSchema.shape, (args) => authenticate(args));
 
 register(server, "get_profile",
   "Get the logged-in customer's basic profile (name, email, language, cooperative). Requires authentication.",
