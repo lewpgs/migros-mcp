@@ -5,7 +5,8 @@
  * loadSession()/saveSession() round-trip — otherwise a process restart loses
  * the cooldown and the next call hammers the rate-limited host again.
  *
- * No network, no credentials. Uses a throwaway XDG_CONFIG_HOME so the real
+ * No network, no credentials. Uses a throwaway config dir on every OS, and
+ * refuses to run if the session file would resolve anywhere else, so the real
  * user config dir is never touched.
  */
 
@@ -15,12 +16,21 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { loadSession, saveSession, type Session } from "../src/auth/cookies.js";
+import { sessionFile } from "../src/auth/paths.js";
 
 let tmpConfig: string;
 
 beforeEach(() => {
   tmpConfig = fs.mkdtempSync(path.join(os.tmpdir(), "migros-session-test-"));
+  // configDir() reads HOME on macOS, APPDATA on Windows and XDG_CONFIG_HOME on
+  // Linux, so point all three at the temp dir.
+  process.env.HOME = tmpConfig;
+  process.env.APPDATA = tmpConfig;
   process.env.XDG_CONFIG_HOME = tmpConfig;
+  assert.ok(
+    sessionFile().startsWith(tmpConfig),
+    "refusing to run: session file would be written outside the temp dir: " + sessionFile(),
+  );
 });
 
 describe("session cooldown persistence", () => {
@@ -31,12 +41,14 @@ describe("session cooldown persistence", () => {
       jwtExp: 9999999999,
       rateLimitedUntil: Date.now() + 3600_000,
       rateLimitReason: "429 from POST /login/email",
+      rateLimitAttempts: 2,
     };
     saveSession(session);
 
     const loaded = loadSession();
     assert.equal(loaded.rateLimitedUntil, session.rateLimitedUntil, "cooldown end must survive restart");
     assert.equal(loaded.rateLimitReason, session.rateLimitReason, "cooldown reason must survive restart");
+    assert.equal(loaded.rateLimitAttempts, 2, "backoff step must survive restart");
   });
 
   it("keeps cooldown fields when the session has no cookies", () => {

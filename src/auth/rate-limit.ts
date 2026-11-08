@@ -83,26 +83,48 @@ export function isRateLimited(session: { rateLimitedUntil?: number }): boolean {
   return typeof session.rateLimitedUntil === "number" && Date.now() < session.rateLimitedUntil;
 }
 
+/** Longest cooldown accepted from a Retry-After header (1 hour). */
+export const MAX_COOLDOWN_SECONDS = 3600;
+
+/** After this long without a new 429, the fallback backoff starts again at 30 s. */
+export const BACKOFF_RESET_MS = 3_600_000;
+
+type CooldownState = { rateLimitedUntil?: number; rateLimitReason?: string; rateLimitAttempts?: number };
+
 /**
  * Apply a cooldown timestamp to the session in-place (caller persists).
  *
- * @param retryAfterSeconds  Parsed Retry-After seconds, or `null` to fall
- *                           back to the first backoff step (30 s).
+ * Consecutive 429s step the fallback backoff up (30 s, 2 min, 10 min). The
+ * count starts again after a successful login (clearRateLimit) or when the
+ * last cooldown ended more than BACKOFF_RESET_MS ago.
+ *
+ * @param retryAfterSeconds  Parsed Retry-After seconds (capped at
+ *                           MAX_COOLDOWN_SECONDS), or `null` to use the
+ *                           backoff step for this attempt.
  */
 export function setRateLimited(
-  session: { rateLimitedUntil?: number; rateLimitReason?: string },
+  session: CooldownState,
   retryAfterSeconds: number | null,
   reason: string,
 ): void {
-  const delay = retryAfterSeconds !== null ? retryAfterSeconds * 1000 : rateLimitBackoff(0);
+  const recent =
+    typeof session.rateLimitedUntil === "number" &&
+    Date.now() - session.rateLimitedUntil < BACKOFF_RESET_MS;
+  const attempt = recent ? session.rateLimitAttempts ?? 0 : 0;
+  const delay =
+    retryAfterSeconds !== null
+      ? Math.min(retryAfterSeconds, MAX_COOLDOWN_SECONDS) * 1000
+      : rateLimitBackoff(attempt);
   session.rateLimitedUntil = Date.now() + delay;
   session.rateLimitReason = reason;
+  session.rateLimitAttempts = attempt + 1;
 }
 
 /** Remove any rate-limit cooldown from the session. */
-export function clearRateLimit(session: { rateLimitedUntil?: number; rateLimitReason?: string }): void {
+export function clearRateLimit(session: CooldownState): void {
   delete session.rateLimitedUntil;
   delete session.rateLimitReason;
+  delete session.rateLimitAttempts;
 }
 
 /** Build a human-readable error for `isRateLimited` + expired JWT. */

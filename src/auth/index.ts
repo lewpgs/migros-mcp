@@ -60,7 +60,9 @@ export async function getJwt(creds?: Credentials): Promise<string> {
   } catch (e) {
     if (e instanceof RateLimitError) {
       // 429 from silent OAuth → apply cooldown, persist, and do NOT cascade.
-      setRateLimited(session, e.retryAfterSeconds, e.message);
+      // The throwing call already set the cooldown. Only set it here if it didn't,
+      // so one 429 isn't counted twice by the backoff.
+      if (!isRateLimited(session)) setRateLimited(session, e.retryAfterSeconds, e.message);
       saveSession(session);
 
       // Fail‑open: if the current (possibly stale) JWT is still valid we
@@ -95,7 +97,9 @@ export async function getJwt(creds?: Credentials): Promise<string> {
     // If fullLogin hits a 429, persist the cooldown so the next call doesn't
     // immediately retry.
     if (e instanceof RateLimitError) {
-      setRateLimited(session, e.retryAfterSeconds, e.message);
+      // The throwing call already set the cooldown. Only set it here if it didn't,
+      // so one 429 isn't counted twice by the backoff.
+      if (!isRateLimited(session)) setRateLimited(session, e.retryAfterSeconds, e.message);
       saveSession(session);
     }
     throw e;

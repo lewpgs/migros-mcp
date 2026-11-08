@@ -10,8 +10,11 @@ All notable changes to this project are documented here. The format is based on 
   - Never cascades a 429 from silent OAuth into a full credentialed login (they share the same host and throttle).
   - Fails open: a still-valid cached JWT is returned even during cooldown so tools keep working.
   - Raises the JWT refresh grace buffer from 60 s to 5 min to reduce silent-OAuth frequency.
-  - Falls back to exponential backoff (30 s → 2 min → 10 min) when `Retry-After` is missing.
+  - Falls back to exponential backoff (30 s → 2 min → 10 min) when `Retry-After` is missing. The step resets after a successful login, or an hour after the last cooldown ended.
+  - Caps a `Retry-After` cooldown at 1 hour.
+  - Saves the cooldown when the token refresh after a 401 hits a 429, so the next call doesn't retry.
   - Surfaces a clear, actionable error when the JWT is expired AND the login host is rate-limited.
+- Tests use a temporary config directory on every OS. Before, `npm test` on macOS or Windows overwrote the real `session.json`.
 
 ## [0.3.1] — 2026-04-28
 

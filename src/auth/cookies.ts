@@ -22,6 +22,8 @@ export interface Session {
   rateLimitedUntil?: number;
   /** Human-readable reason for the cooldown (carried from the 429 response). */
   rateLimitReason?: string;
+  /** Consecutive 429s so far, used to step up the fallback backoff. */
+  rateLimitAttempts?: number;
 }
 
 const EMPTY: Session = { cookies: {}, jwt: null, jwtExp: 0 };
@@ -37,6 +39,7 @@ export function loadSession(): Session {
       jwtExp: parsed.jwtExp ?? 0,
       rateLimitedUntil: parsed.rateLimitedUntil,
       rateLimitReason: parsed.rateLimitReason,
+      rateLimitAttempts: parsed.rateLimitAttempts,
     };
   } catch (err) {
     // Missing file (ENOENT) or unreadable: treat as empty.

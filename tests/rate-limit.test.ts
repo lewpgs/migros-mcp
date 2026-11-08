@@ -14,7 +14,16 @@ import {
   setRateLimited,
   clearRateLimit,
   rateLimitBlockedMessage,
+  MAX_COOLDOWN_SECONDS,
+  BACKOFF_RESET_MS,
 } from "../src/auth/rate-limit.js";
+
+/** Assert a cooldown ends `ms` from now, give or take a second. */
+function assertCooldown(until: number | undefined, ms: number) {
+  assert.ok(typeof until === "number", "rateLimitedUntil should be set");
+  const left = until! - Date.now();
+  assert.ok(Math.abs(left - ms) < 1000, "expected about " + ms + " ms left, got " + left);
+}
 
 // ---------------------------------------------------------------------------
 // parseRetryAfter
@@ -168,14 +177,51 @@ describe("setRateLimited / clearRateLimit", () => {
     );
   });
 
-  it("clearRateLimit removes both fields", () => {
-    const s: { rateLimitedUntil?: number; rateLimitReason?: string } = {
+  it("clearRateLimit removes all cooldown fields", () => {
+    const s: { rateLimitedUntil?: number; rateLimitReason?: string; rateLimitAttempts?: number } = {
       rateLimitedUntil: 99999,
       rateLimitReason: "bad",
+      rateLimitAttempts: 2,
     };
     clearRateLimit(s);
     assert.equal(s.rateLimitedUntil, undefined);
     assert.equal(s.rateLimitReason, undefined);
+    assert.equal(s.rateLimitAttempts, undefined);
+  });
+
+  it("steps the fallback backoff up on consecutive 429s", () => {
+    const s: { rateLimitedUntil?: number; rateLimitReason?: string; rateLimitAttempts?: number } = {};
+    setRateLimited(s, null, "1st");
+    assertCooldown(s.rateLimitedUntil, 30_000);
+    setRateLimited(s, null, "2nd");
+    assertCooldown(s.rateLimitedUntil, 120_000);
+    setRateLimited(s, null, "3rd");
+    assertCooldown(s.rateLimitedUntil, 600_000);
+    setRateLimited(s, null, "4th");
+    assertCooldown(s.rateLimitedUntil, 600_000);
+    assert.equal(s.rateLimitAttempts, 4);
+  });
+
+  it("starts the backoff again when the last cooldown ended long ago", () => {
+    const s = { rateLimitedUntil: Date.now() - BACKOFF_RESET_MS - 1000, rateLimitAttempts: 3 };
+    setRateLimited(s, null, "much later");
+    assertCooldown(s.rateLimitedUntil, 30_000);
+    assert.equal(s.rateLimitAttempts, 1);
+  });
+
+  it("starts the backoff again after a successful login", () => {
+    const s: { rateLimitedUntil?: number; rateLimitReason?: string; rateLimitAttempts?: number } = {};
+    setRateLimited(s, null, "1st");
+    setRateLimited(s, null, "2nd");
+    clearRateLimit(s);
+    setRateLimited(s, null, "after success");
+    assertCooldown(s.rateLimitedUntil, 30_000);
+  });
+
+  it("caps a huge Retry-After at one hour", () => {
+    const s: { rateLimitedUntil?: number; rateLimitReason?: string } = {};
+    setRateLimited(s, 86_400, "a day");
+    assertCooldown(s.rateLimitedUntil, MAX_COOLDOWN_SECONDS * 1000);
   });
 });
 

@@ -89,7 +89,11 @@ export async function api(
     } catch (e) {
       // Rate-limit errors should always surface — swallowing them hides the
       // cooldown from the caller and defeats the cascade-prevention logic.
-      if (e instanceof RateLimitError) throw e;
+      if (e instanceof RateLimitError) {
+        // Save the cooldown silentOAuth just set, so the next call doesn't retry.
+        saveSession(session);
+        throw e;
+      }
       // Silent refresh failed (cookies actually expired). Surface the original
       // 401 since that's more actionable than the silent-refresh error.
     }
