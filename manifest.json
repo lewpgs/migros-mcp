@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "migros-mcp",
   "display_name": "Migros",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Search Migros products and (optionally) manage your basket, addresses, and order history through Claude.",
   "author": {
     "name": "lewpgs"
@@ -48,7 +48,7 @@
     }
   },
   "tools": [
-    { "name": "search_products", "description": "Search Migros products by name or keyword" },
+    { "name": "search_products", "description": "Search Migros products by name or keyword, including products sold only online" },
     { "name": "get_product_details", "description": "Get full product info: nutrition, ingredients, allergens, price" },
     { "name": "get_stock", "description": "Check product availability at a specific store" },
     { "name": "get_categories", "description": "List all product categories" },
