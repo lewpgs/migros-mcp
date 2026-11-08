@@ -7,11 +7,12 @@ import {
   getPromotions as apiGetPromotions,
   searchRecipes as apiSearchRecipes,
   getRecipeDetails as apiGetRecipeDetails,
-  getRecipeProducts as apiGetRecipeProducts,
+  getRecipe as apiGetRecipe,
   getOnlineProductCards as apiGetOnlineProductCards,
   isMigrosIdList,
 } from "./migros.js";
 import { uidsNeedingOnlinePrice } from "./online.js";
+import { productIdsFromRecipe, recipeLanguage } from "./recipes.js";
 
 export async function searchProducts(
   query: string,
@@ -323,35 +324,23 @@ export async function searchRecipes(args: {
   offset?: number;
 }): Promise<string> {
   // Migusto only serves German, French, and Italian — no English content.
-  const lang = (args.language && ["de", "fr", "it"].includes(args.language) ? args.language : "de") as "de" | "fr" | "it";
+  const lang = recipeLanguage(args.language);
 
-  const result = (await apiSearchRecipes({
-    searchTerm: args.query,
-    ingredients: args.ingredients,
-    language: lang,
-    limit: args.limit ?? 20,
-    offset: args.offset ?? 0,
-  })) as { total?: number; recipes?: Record<string, unknown>[] };
+  const result = await apiSearchRecipes(
+    { query: args.query, ingredients: args.ingredients, limit: args.limit ?? 20, offset: args.offset ?? 0 },
+    lang
+  );
 
-  const list = result.recipes ?? [];
+  const list = result.recipes;
   return JSON.stringify(
     {
       count: list.length,
       total: result.total,
       language: lang,
-      recipes: list.map((r) => ({
-        id: r.id,
-        slug: r.slug,
-        title: r.title,
-        durationTotal: r.durationTotal,
-        rating: r.rating,
-        teaser: r.teasertext,
-        image: (r.images as Record<string, string> | undefined)?.["400w"],
-        url: r.slug ? `https://migusto.migros.ch/${lang}/rezepte/${r.slug}` : undefined,
-      })),
+      recipes: list,
       hint:
         list.length > 0
-          ? "Use get_recipe_details with a slug for ingredients + instructions. Use get_recipe_products with the recipe id (NOT slug) to get Migros product UIDs you can add to the basket."
+          ? "Use get_recipe_details with a slug for ingredients + instructions. Use get_recipe_products with the recipe id (NOT slug) to get Migros products (uids) you can add to the basket."
           : "No recipes matched. Try different search terms. Note: Migusto only serves de/fr/it content.",
     },
     null,
@@ -360,8 +349,43 @@ export async function searchRecipes(args: {
 }
 
 export async function getRecipeDetails(args: { slug: string; language?: string }): Promise<string> {
-  const result = await apiGetRecipeDetails({ slug: args.slug, language: args.language ?? "de" });
+  const result = await apiGetRecipeDetails(args.slug, recipeLanguage(args.language));
   return JSON.stringify(result, null, 2);
+}
+
+/**
+ * Product details for recipe product ids. Recipes name products by migrosId
+ * (12 digits); the basket wants the uid, which the product details carry.
+ * Returns [] instead of failing, so the ids still come back.
+ */
+async function recipeProductDetails(ids: string[]): Promise<Record<string, unknown>[]> {
+  const migrosIds = ids.filter((id) => isMigrosIdList([id]));
+  const uids = ids.filter((id) => !isMigrosIdList([id]));
+  const lists = await Promise.all(
+    [migrosIds, uids]
+      .filter((group) => group.length > 0)
+      .map((group) => apiGetProductDetails(group).catch(() => [] as unknown[]))
+  );
+  return lists.flat() as Record<string, unknown>[];
+}
+
+/** One recipe product, matched to its product details if there are any. */
+export function recipeProduct(id: string, details: Record<string, unknown>[]): Record<string, unknown> {
+  const match = details.find((d) => String(d.migrosId) === id || String(d.uid) === id);
+  if (!match) return isMigrosIdList([id]) ? { migrosId: id } : { uid: id };
+  const f = formatProduct(match);
+  const out: Record<string, unknown> = {
+    uid: f.uid !== undefined ? String(f.uid) : undefined,
+    migrosId: f.migrosId !== undefined ? String(f.migrosId) : undefined,
+    name: f.name,
+    brand: f.brand,
+    versioning: f.versioning,
+    price: f.price,
+    promoPrice: f.promoPrice,
+    quantity: f.quantity,
+  };
+  for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
+  return out;
 }
 
 export async function getRecipeProducts(args: {
@@ -370,11 +394,31 @@ export async function getRecipeProducts(args: {
   limit?: number;
   offset?: number;
 }): Promise<string> {
-  const result = await apiGetRecipeProducts({
-    id: args.recipeId,
-    language: args.language ?? "de",
-    limit: args.limit ?? 50,
-    offset: args.offset ?? 0,
-  });
-  return JSON.stringify(result, null, 2);
+  const lang = recipeLanguage(args.language);
+  const recipe = await apiGetRecipe(args.recipeId, lang);
+  const all = productIdsFromRecipe(recipe);
+  const offset = args.offset ?? 0;
+  const page = all.slice(offset, offset + (args.limit ?? 50));
+
+  const details = page.length > 0 ? await recipeProductDetails(page) : [];
+  const products = page.map((id) => recipeProduct(id, details));
+  const productIds = products.map((p) => p.uid).filter((uid): uid is string => typeof uid === "string");
+
+  return JSON.stringify(
+    {
+      recipeId: String(recipe.id ?? args.recipeId),
+      title: recipe.title,
+      language: lang,
+      count: products.length,
+      total: all.length,
+      products,
+      productIds,
+      hint:
+        all.length > 0
+          ? "productIds are uids for add_to_basket. These are the products Migusto suggests for the recipe; for other ingredients use search_products."
+          : "Migusto suggests no products for this recipe. Use get_recipe_details for the ingredient list and search_products for each ingredient.",
+    },
+    null,
+    2
+  );
 }

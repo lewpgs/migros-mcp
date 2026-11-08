@@ -1,9 +1,18 @@
 import { MigrosAPI } from "migros-api-wrapper";
 import { getOnlineCards, mergeSearchResults, searchOnline, type SearchResult } from "./online.js";
+import { fetchCategories } from "./categories.js";
+import {
+  checkRecipeId,
+  fetchMigustoRecipe,
+  fetchRecipe,
+  searchRecipesRequest,
+  type MigustoRecipe,
+  type RecipeLanguage,
+  type RecipeSearchArgs,
+  type RecipeSummary,
+} from "./recipes.js";
 
 const migros = new MigrosAPI();
-// Migusto (recipes) is exposed as a static on MigrosAPI, not on the instance.
-const migusto = MigrosAPI.migusto;
 
 let cachedToken: string | null = null;
 
@@ -123,11 +132,9 @@ export async function getStock(
   });
 }
 
-export async function getCategories(): Promise<unknown> {
-  return withToken(async (token) => {
-    const result = await migros.products.productSearch.categoryList({}, token);
-    return result?.categories ?? [];
-  });
+/** The wrapper's categoryList() calls an address Migros removed, so this has its own request. */
+export async function getCategories(): Promise<unknown[]> {
+  return withToken((token) => fetchCategories(token, "de"));
 }
 
 export async function searchStores(query: string): Promise<unknown[]> {
@@ -149,48 +156,23 @@ export async function getPromotions(query: string): Promise<unknown> {
 }
 
 // ---------------------------------------------------------------------------
-// Migusto (recipes) — public, no auth required
+// Recipes: migros.ch recipe API (search, by id) and Migusto pages (by slug).
+// The wrapper's Migusto calls hit an API Migusto removed, see recipes.ts.
 // ---------------------------------------------------------------------------
 
-export async function searchRecipes(args: {
-  searchTerm?: string;
-  ingredients?: string[];
-  language?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<unknown> {
-  // Only include fields that are actually set; the underlying wrapper
-  // mis-encodes the request when given explicit `undefined` values.
-  const opts: Record<string, unknown> = {
-    limit: args.limit ?? 20,
-    offset: args.offset ?? 0,
-  };
-  if (args.searchTerm) opts.searchTerm = args.searchTerm;
-  if (args.ingredients?.length) opts.ingredients = args.ingredients;
-  if (args.language) opts.language = args.language;
-  return await migusto.recipeSearch(opts as any);
+export async function searchRecipes(
+  args: RecipeSearchArgs,
+  language: RecipeLanguage
+): Promise<{ total?: number; recipes: RecipeSummary[] }> {
+  return withToken((token) => searchRecipesRequest(args, language, token));
 }
 
-export async function getRecipeDetails(args: {
-  slug: string;
-  language?: string;
-}): Promise<unknown> {
-  const opts: Record<string, unknown> = { slug: args.slug };
-  if (args.language) opts.language = args.language;
-  return await migusto.recipeDetails(opts as any);
+export async function getRecipe(id: string, language: RecipeLanguage): Promise<Record<string, unknown>> {
+  const recipeId = checkRecipeId(id); // before any request, so a bad id costs nothing
+  return withToken((token) => fetchRecipe(recipeId, language, token));
 }
 
-export async function getRecipeProducts(args: {
-  id: string;
-  language?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<unknown> {
-  const opts: Record<string, unknown> = {
-    id: args.id,
-    limit: args.limit ?? 50,
-    offset: args.offset ?? 0,
-  };
-  if (args.language) opts.language = args.language;
-  return await migusto.recipeProducts(opts as any);
+/** No token: the Migusto recipe page is a public web page. */
+export async function getRecipeDetails(slug: string, language: RecipeLanguage): Promise<MigustoRecipe> {
+  return fetchMigustoRecipe(slug, language);
 }

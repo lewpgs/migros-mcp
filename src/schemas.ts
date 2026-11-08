@@ -45,15 +45,15 @@ export const SearchRecipesSchema = z.object({
 });
 
 export const GetRecipeDetailsSchema = z.object({
-  slug: z.string().describe("Recipe slug from search_recipes (the URL-safe id)."),
-  language: z.string().optional().describe("Language code. Default: de."),
+  slug: z.string().describe("Recipe slug from search_recipes (the URL-safe name, e.g. 'marroni-aus-dem-ofen')."),
+  language: z.string().optional().describe("Language code: de, fr, it. Default: de."),
 });
 
 export const GetRecipeProductsSchema = z.object({
-  recipeId: z.string().describe("Recipe id (UUID) from search_recipes. NOT the slug."),
-  language: z.string().optional().describe("Language code. Default: de."),
-  limit: z.number().int().min(1).max(100).optional(),
-  offset: z.number().int().min(0).optional(),
+  recipeId: z.string().describe("Numeric recipe id from search_recipes (e.g. '39632'). NOT the slug."),
+  language: z.string().optional().describe("Language code: de, fr, it. Default: de."),
+  limit: z.number().int().min(1).max(100).optional().describe("Max products to return. Default: 50."),
+  offset: z.number().int().min(0).optional().describe("0-based offset for pagination."),
 });
 
 // ---------------------------------------------------------------------------
