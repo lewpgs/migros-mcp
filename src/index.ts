@@ -14,6 +14,7 @@ import {
   GetRecipeProductsSchema,
   AuthenticateSchema,
   GetBasketSchema,
+  GetCheckoutLinkSchema,
   AddToBasketSchema,
   UpdateBasketQuantitySchema,
   RemoveFromBasketSchema,
@@ -36,6 +37,7 @@ import {
 import {
   authenticate,
   getProfile,
+  getShoppingLists,
   getBasket,
   addToBasket,
   updateBasketQuantity,
@@ -112,8 +114,12 @@ register(server, "get_addresses",
 
 // --- Authenticated: cart ---
 
+register(server, "get_shopping_lists",
+  "List the user's Migros shopping lists (id and name). Call this when the user mentions a specific list or has several: pass the chosen shoppingListId to the basket tools. Requires authentication.",
+  {}, () => getShoppingLists());
+
 register(server, "get_basket",
-  "Fetch the items currently in the user's shopping basket (Migros calls this a shopping list). Returns product IDs and quantities; use get_product_details to enrich. Requires authentication.",
+  "Fetch the items currently in the user's shopping basket (Migros calls this a shopping list). Returns product IDs and quantities; use get_product_details to enrich. If the user has several lists, use get_shopping_lists and pass shoppingListId. Requires authentication.",
   GetBasketSchema.shape, (args) => getBasket(args));
 
 register(server, "add_to_basket",
@@ -140,7 +146,7 @@ register(server, "get_order_details",
 
 register(server, "get_checkout_link",
   "Return the URL the user should open in their browser to complete checkout (review basket, confirm address/slot, pay). Order placement requires payment confirmation in a real browser, so this tool hands off rather than firing the order automatically. Returns a basket summary alongside the URL. Requires authentication.",
-  {}, () => getCheckoutLink());
+  GetCheckoutLinkSchema.shape, (args) => getCheckoutLink(args));
 
 // --- Authenticated: Cumulus / in-store ---
 

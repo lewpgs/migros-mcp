@@ -143,6 +143,7 @@ If you've **explicitly pinned** a version in your config (e.g. `migros-mcp@0.3.0
 | `authenticate` | Log in with the current six-digit 2FA code. Only needed when no TOTP secret is set. Reuses a cached session when possible. |
 | `get_profile` | Logged-in customer's basic profile (name, email, language). |
 | `get_addresses` | Saved delivery and billing addresses. |
+| `get_shopping_lists` | The user's shopping lists by name, for people with more than one. Pass a list's id to the basket tools. |
 | `get_basket` | Items currently in the user's basket. |
 | `add_to_basket` | Add a product (sets target quantity, default 1). |
 | `update_basket_quantity` | Set an item's exact quantity (0 to remove). |

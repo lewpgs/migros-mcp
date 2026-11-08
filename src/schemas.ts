@@ -73,7 +73,11 @@ export const AuthenticateSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const GetBasketSchema = z.object({
-  shoppingListId: z.number().optional().describe("Optional shopping list ID. Omit to fetch the user's primary list."),
+  shoppingListId: z.number().optional().describe("Optional shopping list ID from get_shopping_lists. Omit to use the first list."),
+});
+
+export const GetCheckoutLinkSchema = z.object({
+  shoppingListId: z.number().optional().describe("Optional shopping list ID from get_shopping_lists. Omit to use the first list."),
 });
 
 export const AddToBasketSchema = z.object({
@@ -84,7 +88,7 @@ export const AddToBasketSchema = z.object({
     .min(1)
     .optional()
     .describe("Target quantity. Defaults to 1. REPLACES existing quantity, not increment."),
-  shoppingListId: z.number().optional().describe("Optional list ID; omit to use the primary list."),
+  shoppingListId: z.number().optional().describe("Optional list ID from get_shopping_lists; omit to use the first list."),
 });
 
 export const UpdateBasketQuantitySchema = z.object({

@@ -60,6 +60,7 @@
     { "name": "authenticate", "description": "Log in with the current six-digit 2FA code, for setups without a stored TOTP secret" },
     { "name": "get_profile", "description": "(Auth) Logged-in customer's profile" },
     { "name": "get_addresses", "description": "(Auth) Saved delivery and billing addresses" },
+    { "name": "get_shopping_lists", "description": "(Auth) The user's shopping lists, by name" },
     { "name": "get_basket", "description": "(Auth) Items currently in the user's basket" },
     { "name": "add_to_basket", "description": "(Auth) Add a product to the basket" },
     { "name": "update_basket_quantity", "description": "(Auth) Set an item's exact quantity (0 to remove)" },

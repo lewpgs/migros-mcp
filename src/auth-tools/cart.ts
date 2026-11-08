@@ -36,20 +36,62 @@ interface BasketResponse {
   categories?: BasketCategory[];
 }
 
-/**
- * Resolve the user's primary shopping list id, calling /lists/overview if not
- * provided. Most users have a single list named "Shopping list".
- */
-async function resolveShoppingListId(provided?: number): Promise<number> {
-  if (typeof provided === "number") return provided;
+/** All of the user's shopping lists, as Migros returns them. */
+async function fetchShoppingLists(): Promise<ShoppingListSummary[]> {
   const lists = (await api(
     "GET",
     "/shopping-list/public/v1/lists/overview",
     undefined,
     { creds: credsFromEnv() }
   )) as ShoppingListSummary[];
-  if (!lists?.length) throw new Error("no shopping lists found for this account");
+  return lists ?? [];
+}
+
+/**
+ * Resolve the user's primary shopping list id, calling /lists/overview if not
+ * provided. Most users have a single list named "Shopping list".
+ */
+async function resolveShoppingListId(provided?: number): Promise<number> {
+  if (typeof provided === "number") return provided;
+  const lists = await fetchShoppingLists();
+  if (!lists.length) throw new Error("no shopping lists found for this account");
   return lists[0].shoppingListId;
+}
+
+/**
+ * Shape the list overview for the AI: id and name of each list, plus a hint
+ * on how to use them. The basket tools fall back to the first list here.
+ */
+export function formatShoppingLists(lists: ShoppingListSummary[] | null | undefined): string {
+  const out = (lists ?? []).map((l) => ({
+    shoppingListId: l.shoppingListId,
+    name: l.shoppingListName ?? (l as { name?: string }).name,
+  }));
+  return JSON.stringify(
+    {
+      count: out.length,
+      lists: out,
+      hint:
+        out.length > 1
+          ? "Several lists. If it isn't clear which one the user means, ask. Then pass its shoppingListId " +
+            "to get_basket, add_to_basket, update_basket_quantity, remove_from_basket or get_checkout_link. " +
+            "Without it, those tools use the first list here."
+          : out.length === 1
+            ? "One list. The basket tools use it by default."
+            : "No shopping lists found for this account.",
+    },
+    null,
+    2
+  );
+}
+
+/**
+ * List the user's shopping lists (id and name). Needed when someone keeps
+ * several lists: the basket tools otherwise use whichever list Migros returns
+ * first, which isn't always the one they mean.
+ */
+export async function getShoppingLists(): Promise<string> {
+  return formatShoppingLists(await fetchShoppingLists());
 }
 
 /**
@@ -169,8 +211,8 @@ export async function removeFromBasket(args: {
  * real browser (Datatrans 3DS / saved-card prompt), so we hand off rather than
  * try to automate the money step. Includes a basket summary for the LLM.
  */
-export async function getCheckoutLink(): Promise<string> {
-  const shoppingListId = await resolveShoppingListId();
+export async function getCheckoutLink(args: { shoppingListId?: number } = {}): Promise<string> {
+  const shoppingListId = await resolveShoppingListId(args.shoppingListId);
   const data = (await api(
     "GET",
     `/shopping-list/public/v2/list/details?shoppingListId=${shoppingListId}`,
