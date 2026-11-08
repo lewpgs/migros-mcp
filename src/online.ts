@@ -160,10 +160,16 @@ export function mergeSearchResults(store: SearchResult, onlineIds: string[]): Se
   };
 }
 
-/** Requested uids that the in-store product details didn't return. */
-export function missingUids(requested: string[], details: unknown[]): string[] {
-  const found = new Set(
-    details.map((d) => String((d as { uid?: unknown } | null)?.uid ?? "")).filter(Boolean)
-  );
-  return [...new Set(requested)].filter((id) => /^\d+$/.test(id) && !found.has(id));
+/**
+ * Requested uids that need the online shop for their price: the in-store
+ * details either didn't return them, or returned them without a price (an
+ * online-only product has no in-store offer, checked live on 08.11.2026).
+ */
+export function uidsNeedingOnlinePrice(requested: string[], details: unknown[]): string[] {
+  const priced = new Set<string>();
+  for (const d of details) {
+    const p = d as { uid?: unknown; offer?: { price?: unknown } } | null;
+    if (p?.uid !== undefined && p.uid !== null && p.offer?.price) priced.add(String(p.uid));
+  }
+  return [...new Set(requested)].filter((id) => /^\d+$/.test(id) && !priced.has(id));
 }

@@ -11,7 +11,7 @@ import {
   getOnlineProductCards as apiGetOnlineProductCards,
   isMigrosIdList,
 } from "./migros.js";
-import { missingUids } from "./online.js";
+import { uidsNeedingOnlinePrice } from "./online.js";
 
 export async function searchProducts(
   query: string,
@@ -175,35 +175,60 @@ function formatProduct(product: Record<string, unknown>): Record<string, unknown
 }
 
 /**
- * Shape a product card from the online shop like formatProduct does, plus
- * what matters for online-only products: the Partner badge, availability,
- * and the website link. Cards carry no nutrition or ingredients.
+ * What an online shop product card adds for an online-only product: its
+ * online price, the Partner badge, availability and the website link.
  */
-export function formatOnlineCard(card: Record<string, unknown>): Record<string, unknown> {
-  const formatted = formatProduct(card);
+function onlineOffer(card: Record<string, unknown>): Record<string, unknown> {
+  const fromCard = formatProduct(card);
+  const out: Record<string, unknown> = {};
+  for (const key of ["price", "unitPrice", "promoPrice", "quantity"]) {
+    if (fromCard[key] !== undefined) out[key] = fromCard[key];
+  }
 
   const offer = card.offer as Record<string, unknown> | undefined;
   const badges = (offer?.badges as Array<Record<string, unknown>> | undefined) ?? [];
   if (badges.some((b) => b?.type === "PARTNER")) {
-    formatted.partner = true;
+    out.partner = true;
   }
 
   if (typeof card.productAvailability === "string") {
-    delete formatted.isAvailable;
-    formatted.availability = card.productAvailability;
-  }
-
-  const breadcrumb = card.breadcrumb as Array<Record<string, unknown>> | undefined;
-  if (!formatted.categories && breadcrumb?.length) {
-    formatted.categories = breadcrumb.map((c) => c.name).filter(Boolean);
+    out.availability = card.productAvailability;
   }
 
   const moId = card.migrosOnlineId;
   if (typeof moId === "string" || typeof moId === "number") {
-    formatted.migrosOnlineId = String(moId);
+    out.migrosOnlineId = String(moId);
     if (/^\d+$/.test(String(moId))) {
-      formatted.url = `https://www.migros.ch/de/product/mo/${moId}`;
+      out.url = `https://www.migros.ch/de/product/mo/${moId}`;
     }
+  }
+  return out;
+}
+
+/**
+ * Add the online shop's price and badges to a product the in-store details
+ * returned without a price. In-store availability doesn't apply to it.
+ */
+export function withOnlineOffer(
+  formatted: Record<string, unknown>,
+  card: Record<string, unknown>
+): Record<string, unknown> {
+  const out = { ...formatted, ...onlineOffer(card) };
+  if (out.availability !== undefined) delete out.isAvailable;
+  return out;
+}
+
+/**
+ * Shape a product card from the online shop like formatProduct does, for a
+ * product the in-store details don't know at all. Cards carry no nutrition
+ * or ingredients.
+ */
+export function formatOnlineCard(card: Record<string, unknown>): Record<string, unknown> {
+  const formatted = withOnlineOffer(formatProduct(card), card);
+
+  const breadcrumb = card.breadcrumb as Array<Record<string, unknown>> | undefined;
+  if (!formatted.categories && breadcrumb?.length) {
+    formatted.categories = breadcrumb.map((c) => c.name).filter(Boolean);
   }
 
   formatted.source = "Migros Online shop (no nutrition or ingredients for this product)";
@@ -215,19 +240,27 @@ export async function getProductDetails(
 ): Promise<string> {
   const products = ((await apiGetProductDetails(productIds)) ?? []) as Record<string, unknown>[];
 
-  // Online-only products (e.g. "Partner") aren't in the in-store details.
-  // Fetch the ones still missing from the online shop's product cards.
-  const missing = isMigrosIdList(productIds) ? [] : missingUids(productIds, products);
-  const cards = (await apiGetOnlineProductCards(missing)) as Record<string, unknown>[];
+  // Online-only products (e.g. "Partner") have no in-store price, or aren't
+  // in the in-store details at all. Ask the online shop's product cards for
+  // those. Products with an in-store price make no extra call.
+  const needOnline = isMigrosIdList(productIds) ? [] : uidsNeedingOnlinePrice(productIds, products);
+  const cards = (await apiGetOnlineProductCards(needOnline)) as Record<string, unknown>[];
+  const cardByUid = new Map(cards.map((c) => [String(c.uid), c]));
 
-  if (products.length === 0 && cards.length === 0) {
+  const formatted = products.map((p) => {
+    const card = cardByUid.get(String(p.uid));
+    if (!card) return formatProduct(p);
+    cardByUid.delete(String(p.uid));
+    return withOnlineOffer(formatProduct(p), card);
+  });
+  formatted.push(...[...cardByUid.values()].map(formatOnlineCard));
+
+  if (formatted.length === 0) {
     return JSON.stringify({
       message: "No product details found for the given IDs",
       productIds,
     });
   }
-
-  const formatted = [...products.map(formatProduct), ...cards.map(formatOnlineCard)];
 
   return JSON.stringify(formatted, null, 2);
 }

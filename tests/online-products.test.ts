@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import {
   getOnlineCards,
   mergeSearchResults,
-  missingUids,
+  uidsNeedingOnlinePrice,
   onlineCardsBody,
   onlineSearchBody,
   onlineWarehouseId,
@@ -16,7 +16,7 @@ import {
   searchOnline,
   type Post,
 } from "../src/online.js";
-import { formatOnlineCard } from "../src/tools.js";
+import { formatOnlineCard, withOnlineOffer } from "../src/tools.js";
 
 /** A fake transport that records each call and answers with `reply`. */
 function fakePost(reply: { status: number; data: unknown }) {
@@ -155,13 +155,23 @@ describe("mergeSearchResults", () => {
 });
 
 describe("product details fallback", () => {
-  it("lists requested uids the in-store details didn't return", () => {
-    const details = [{ uid: 100002154 }, { uid: "100007447" }];
-    assert.deepEqual(missingUids(["100002154", "100040201", "100007447"], details), ["100040201"]);
+  const priced = (uid: unknown) => ({ uid, offer: { price: { advertisedDisplayValue: "3.90" } } });
+
+  it("asks the online shop only for uids without an in-store price", () => {
+    // Live 08.11.2026: the partner penne comes back from the in-store details, but with no offer.
+    const details = [priced(100002154), priced("100007447"), { uid: 100040201, name: "Penne Rigate" }];
+    assert.deepEqual(
+      uidsNeedingOnlinePrice(["100002154", "100040201", "100007447", "100040190"], details),
+      ["100040201", "100040190"],
+    );
+  });
+
+  it("makes no online call when every product has an in-store price", () => {
+    assert.deepEqual(uidsNeedingOnlinePrice(["100002154"], [priced(100002154)]), []);
   });
 
   it("ignores duplicates and ids that aren't numbers", () => {
-    assert.deepEqual(missingUids(["100040201", "100040201", "abc", ""], []), ["100040201"]);
+    assert.deepEqual(uidsNeedingOnlinePrice(["100040201", "100040201", "abc", ""], []), ["100040201"]);
   });
 
   it("asks for product cards the way the website does", () => {
@@ -213,5 +223,29 @@ describe("formatOnlineCard", () => {
   it("doesn't mark products without a Partner badge as partner", () => {
     const card = { ...partnerCard, offer: { ...partnerCard.offer, badges: [{ type: "PROMOTION" }] } };
     assert.equal("partner" in formatOnlineCard(card), false);
+  });
+});
+
+describe("withOnlineOffer", () => {
+  it("adds the online price and Partner flag to in-store details that had none", () => {
+    const inStore = {
+      uid: 100040201,
+      name: "Penne Rigate",
+      brand: "Barilla",
+      versioning: "glutenfrei",
+      nutrition: "| Nutrient | per 100g |",
+      isAvailable: false,
+    };
+    const out = withOnlineOffer(inStore, partnerCard);
+    assert.equal(out.name, "Penne Rigate");
+    assert.equal(out.nutrition, "| Nutrient | per 100g |");
+    assert.equal(out.price, "CHF 3.50");
+    assert.equal(out.unitPrice, "CHF 0.88/100g");
+    assert.equal(out.quantity, "400 g");
+    assert.equal(out.partner, true);
+    assert.equal(out.availability, "ONLINE_ONLY");
+    assert.equal("isAvailable" in out, false);
+    assert.equal(out.url, "https://www.migros.ch/de/product/mo/222716");
+    assert.equal("source" in out, false);
   });
 });

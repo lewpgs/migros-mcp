@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format is based on 
 
 ### Fixed
 
-- **Products sold only online can be found and added to the basket** (#8). Some products exist only in the Migros Online shop, for example "Partner" products marked "not available in stores". `search_products` now also asks the online shop's search and adds those products after the usual results, listed again in `onlineOnlyProductIds`. `get_product_details` shows their name, brand, price, availability and website link (the online shop has no nutrition or ingredients for them). They go into the basket with `add_to_basket` like any other product. If the online search fails, results are the same as before.
+- **Products sold only online can be found and added to the basket** (#8). Some products exist only in the Migros Online shop, for example "Partner" products marked "not available in stores". `search_products` now also asks the online shop's search and adds those products after the usual results, listed again in `onlineOnlyProductIds`. `get_product_details` adds their online price, a `partner` flag, availability and the website link (before, they came back without a price). They go into the basket with `add_to_basket` like any other product. If the online search fails, results are the same as before.
 
 ## [0.4.0] - 2026-11-08
 
