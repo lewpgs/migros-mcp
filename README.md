@@ -176,7 +176,7 @@ These are what Claude calls behind the scenes. You don't need them to use it.
 | `get_orders` | Your online orders, page by page, filterable by status. |
 | `get_order_details` | One order in full. |
 | `get_checkout_link` | A link to finish checkout on migros.ch. |
-| `get_cumulus_status` | Your Cumulus card: points, level, cardholder. |
+| `get_cumulus_status` | Your Cumulus card: points collected this period, card number, cardholder, memberships. |
 | `get_in_store_receipts` | Your in-store receipts (Kassenbons) for a date range. |
 | `get_receipt_details` | A link to see one receipt's items. |
 | `get_cumulus_coupons` | Your current personal Cumulus coupons. |

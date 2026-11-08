@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`get_cumulus_status` works again.** Migros moved the address it used, so it answered 404 for everyone. It now reads the Cumulus profile from the address the migros.ch website uses. It returns `pointsBalance` (points collected in the current period), `cumulusNumber`, `cardholder`, `memberships` and `isFamigrosMember`. Migros no longer sends a level or lifetime points, so `level`, `lifetimePoints` and `cardholderTitle` are gone, and `cumulusId` is now `cumulusNumber`. An account without a Cumulus card gets `hasCumulus: false` instead of an error.
+
+### Changed
+
+- The README is shorter and easier to follow: install steps per app (with Claude Desktop's current Settings path), one table for what to enter depending on how you sign in, and new "Privacy and safety" and "Troubleshooting" sections.
+
 ## [0.5.0] - 2026-11-08
 
 ### Fixed

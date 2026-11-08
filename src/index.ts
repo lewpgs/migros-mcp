@@ -152,7 +152,7 @@ register(server, "get_checkout_link",
 // --- Authenticated: Cumulus / in-store ---
 
 register(server, "get_cumulus_status",
-  "Get the user's Cumulus loyalty card status: points balance, level, cardholder, lifetime stats. Requires authentication.",
+  "Get the user's Cumulus loyalty card: points collected this period, Cumulus number, cardholder and memberships (such as Famigros). Requires authentication.",
   {}, () => getCumulusStatus());
 
 register(server, "get_in_store_receipts",
