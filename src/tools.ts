@@ -8,7 +8,10 @@ import {
   searchRecipes as apiSearchRecipes,
   getRecipeDetails as apiGetRecipeDetails,
   getRecipeProducts as apiGetRecipeProducts,
+  getOnlineProductCards as apiGetOnlineProductCards,
+  isMigrosIdList,
 } from "./migros.js";
+import { missingUids } from "./online.js";
 
 export async function searchProducts(
   query: string,
@@ -24,11 +27,29 @@ export async function searchProducts(
     });
   }
 
+  const hint =
+    "Use get_product_details with these product IDs to get full product info including nutrition, price, and ingredients.";
+  if (!result.onlineOnlyProductIds?.length) {
+    return JSON.stringify(
+      {
+        numberOfProducts: result.numberOfProducts,
+        productIds: result.productIds,
+        hint,
+      },
+      null,
+      2
+    );
+  }
+
   return JSON.stringify(
     {
       numberOfProducts: result.numberOfProducts,
       productIds: result.productIds,
-      hint: "Use get_product_details with these product IDs to get full product info including nutrition, price, and ingredients.",
+      onlineOnlyProductIds: result.onlineOnlyProductIds,
+      hint:
+        hint +
+        " onlineOnlyProductIds (also in productIds) were found only by the Migros Online shop search, " +
+        "for example 'Partner' products. They can be delivered and added to the basket, but stores don't sell them, so get_stock won't find them.",
     },
     null,
     2
@@ -153,19 +174,60 @@ function formatProduct(product: Record<string, unknown>): Record<string, unknown
   return formatted;
 }
 
+/**
+ * Shape a product card from the online shop like formatProduct does, plus
+ * what matters for online-only products: the Partner badge, availability,
+ * and the website link. Cards carry no nutrition or ingredients.
+ */
+export function formatOnlineCard(card: Record<string, unknown>): Record<string, unknown> {
+  const formatted = formatProduct(card);
+
+  const offer = card.offer as Record<string, unknown> | undefined;
+  const badges = (offer?.badges as Array<Record<string, unknown>> | undefined) ?? [];
+  if (badges.some((b) => b?.type === "PARTNER")) {
+    formatted.partner = true;
+  }
+
+  if (typeof card.productAvailability === "string") {
+    delete formatted.isAvailable;
+    formatted.availability = card.productAvailability;
+  }
+
+  const breadcrumb = card.breadcrumb as Array<Record<string, unknown>> | undefined;
+  if (!formatted.categories && breadcrumb?.length) {
+    formatted.categories = breadcrumb.map((c) => c.name).filter(Boolean);
+  }
+
+  const moId = card.migrosOnlineId;
+  if (typeof moId === "string" || typeof moId === "number") {
+    formatted.migrosOnlineId = String(moId);
+    if (/^\d+$/.test(String(moId))) {
+      formatted.url = `https://www.migros.ch/de/product/mo/${moId}`;
+    }
+  }
+
+  formatted.source = "Migros Online shop (no nutrition or ingredients for this product)";
+  return formatted;
+}
+
 export async function getProductDetails(
   productIds: string[]
 ): Promise<string> {
-  const products = await apiGetProductDetails(productIds);
+  const products = ((await apiGetProductDetails(productIds)) ?? []) as Record<string, unknown>[];
 
-  if (!products || (products as unknown[]).length === 0) {
+  // Online-only products (e.g. "Partner") aren't in the in-store details.
+  // Fetch the ones still missing from the online shop's product cards.
+  const missing = isMigrosIdList(productIds) ? [] : missingUids(productIds, products);
+  const cards = (await apiGetOnlineProductCards(missing)) as Record<string, unknown>[];
+
+  if (products.length === 0 && cards.length === 0) {
     return JSON.stringify({
       message: "No product details found for the given IDs",
       productIds,
     });
   }
 
-  const formatted = (products as Record<string, unknown>[]).map(formatProduct);
+  const formatted = [...products.map(formatProduct), ...cards.map(formatOnlineCard)];
 
   return JSON.stringify(formatted, null, 2);
 }

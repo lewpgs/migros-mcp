@@ -1,4 +1,5 @@
 import { MigrosAPI } from "migros-api-wrapper";
+import { getOnlineCards, mergeSearchResults, searchOnline, type SearchResult } from "./online.js";
 
 const migros = new MigrosAPI();
 // Migusto (recipes) is exposed as a static on MigrosAPI, not on the instance.
@@ -39,21 +40,52 @@ async function withToken<T>(fn: (token: string) => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Search the in-store catalogue (as before) and the online shop at the same
+ * time. Online-only products, such as "Partner" products, come after the
+ * in-store results (issue #8). If the online search fails, the in-store
+ * result is returned unchanged.
+ */
 export async function searchProducts(
   query: string,
   language: string
-): Promise<{ productIds: string[]; numberOfProducts: number }> {
+): Promise<SearchResult> {
   return withToken(async (token) => {
-    const result = await migros.products.productSearch.searchProduct(
-      { query, language: language as any },
-      {},
-      token
+    const [result, onlineIds] = await Promise.all([
+      migros.products.productSearch.searchProduct(
+        { query, language: language as any },
+        {},
+        token
+      ),
+      searchOnline(query, language, token).catch(() => [] as string[]),
+    ]);
+    return mergeSearchResults(
+      {
+        productIds: result.productIds ?? [],
+        numberOfProducts: result.numberOfProducts ?? 0,
+      },
+      onlineIds
     );
-    return {
-      productIds: result.productIds ?? [],
-      numberOfProducts: result.numberOfProducts ?? 0,
-    };
   });
+}
+
+/** Ids that are migrosIds (12+ digits) rather than uids. */
+export function isMigrosIdList(productIds: string[]): boolean {
+  return productIds.every((id) => id.length >= 12 && /^\d+$/.test(id));
+}
+
+/**
+ * Product cards from the online shop, for uids the in-store details don't
+ * know (online-only products). Returns [] if the call fails. No retry with a
+ * new token: the details call just before has already checked the token.
+ */
+export async function getOnlineProductCards(uids: string[]): Promise<unknown[]> {
+  if (uids.length === 0) return [];
+  try {
+    return await getOnlineCards(uids, await getToken());
+  } catch {
+    return [];
+  }
 }
 
 export async function getProductDetails(
@@ -61,7 +93,7 @@ export async function getProductDetails(
 ): Promise<unknown[]> {
   return withToken(async (token) => {
     // Detect if IDs are migrosIds (long numeric, 12+ digits) or uids (shorter numeric)
-    const isMigrosId = productIds.every((id) => id.length >= 12 && /^\d+$/.test(id));
+    const isMigrosId = isMigrosIdList(productIds);
     const params = isMigrosId
       ? { migrosIds: productIds.join(",") }
       : { uids: productIds };
