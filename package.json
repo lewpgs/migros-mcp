@@ -15,6 +15,7 @@
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "test": "node --import tsx --test tests/**/*.test.ts",
+    "live-check": "node scripts/live-check.mjs",
     "prepublishOnly": "npm run build"
   },
   "repository": {
