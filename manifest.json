@@ -21,7 +21,8 @@
       "env": {
         "MIGROS_EMAIL": "${user_config.email}",
         "MIGROS_PASSWORD": "${user_config.password}",
-        "MIGROS_TOTP_SECRET": "${user_config.totp_secret}"
+        "MIGROS_TOTP_SECRET": "${user_config.totp_secret}",
+        "MIGROS_MCP_UPDATE_CHECK": "${user_config.update_check}"
       }
     }
   },
@@ -44,6 +45,13 @@
       "title": "Migros TOTP Secret (optional)",
       "description": "The static base32 seed (~32 characters of A-Z2-7) you got when setting up your authenticator app. NOT the rotating 6-digit code. From your password manager's 'view OTP secret' option, or by re-enrolling a new authenticator and revealing the seed text. Leave blank if you have no 2FA, or if you'd rather type the current 6-digit code when Claude asks for it.",
       "sensitive": true,
+      "required": false
+    },
+    "update_check": {
+      "type": "boolean",
+      "title": "Tell me when a new version is out",
+      "description": "About once a day, while you use it, asks the npm registry for the newest version number. If a newer version is out, one answer a day says so. Nothing about you is sent.",
+      "default": true,
       "required": false
     }
   },
