@@ -5,31 +5,25 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { Get, HttpResponse, Post } from "../src/http.js";
+import type { Get, HttpResponse } from "../src/http.js";
 import {
   checkRecipeId,
   fetchMigustoRecipe,
   fetchRecipe,
   imageUrl,
   migustoRecipeUrl,
+  overviewPageFor,
   parseMigustoRecipePage,
   productIdsFromRecipe,
   recipeLanguage,
-  recipeSearchBody,
+  recipeOverviewUrl,
+  recipeSearchTerm,
+  recipesFromOverviewPage,
   recipesFromSearch,
   searchRecipesRequest,
   slugFromRecipeUrl,
 } from "../src/recipes.js";
 import { recipeProduct } from "../src/tools.js";
-
-function fakePost(reply: HttpResponse) {
-  const calls: Array<{ url: string; body: any; headers: Record<string, string> }> = [];
-  const post: Post = async (url, body, headers) => {
-    calls.push({ url, body, headers });
-    return reply;
-  };
-  return { post, calls };
-}
 
 /** Answers each GET with the next reply in the list. */
 function fakeGet(...replies: HttpResponse[]) {
@@ -43,7 +37,7 @@ function fakeGet(...replies: HttpResponse[]) {
   return { get, calls };
 }
 
-// Shaped like a migros.ch recipe search answer (keys seen in the site's code, 08.11.2026).
+// Shaped like a migros.ch recipe API answer (seen live 08.11.2026), plus the other forms the parser takes.
 const searchAnswer = {
   total: 223,
   recipes: [
@@ -72,42 +66,121 @@ describe("recipe language", () => {
   });
 });
 
+/** A Migusto list card, shaped like the real ones (08.11.2026). */
+function card(n: number) {
+  return {
+    id: String(1000 + n),
+    title: `Risotto ${n}`,
+    image: {
+      altText: `Risotto ${n}`,
+      sources: [
+        { ratio: "1-1", source: "ROKKA", url: `https://recipeimages.migros.ch/{stack}/aa${n}/risotto-${n}-0-1-1.jpg` },
+        { ratio: "4-3", source: "ROKKA", url: `https://recipeimages.migros.ch/{stack}/bb${n}/risotto-${n}-0-4-3.jpg` },
+      ],
+    },
+    rating: { count: 6, average: 4.5 },
+    duration: "PT30M",
+    description: "Cremig.",
+    hasDiscount: false,
+    video: "$undefined",
+    matchedIngredients: [],
+    target: { type: "RECIPE", recipe: { id: String(1000 + n), slug: `risotto-${n}` } },
+  };
+}
+
+/** A Migusto list page: the recipe list sits in the data Next.js streams into the page. */
+function listPage(cards: unknown[], total = 223): string {
+  const stream =
+    '0:["$","html",null,{}]\n' +
+    '53:["$","div",null,{"id":"recipelist","children":["$","$L5a",null,{"basePath":"/recipe-overview/[[...taxonomies]]",' +
+    `"initialPage":1,"term":"risotto","initialRecipeData":${JSON.stringify({ total, recipes: cards })}}]}]\n`;
+  const half = Math.floor(stream.length / 2);
+  // Next.js may split the stream over several pushes, even in the middle of a value.
+  return [
+    "<!DOCTYPE html><html><body>",
+    `<script>self.__next_f.push([0])</script>`,
+    `<script>self.__next_f.push([1,${JSON.stringify(stream.slice(0, half))}])</script>`,
+    `<script>self.__next_f.push([1,${JSON.stringify(stream.slice(half))}])</script>`,
+    "</body></html>",
+  ].join("");
+}
+
 describe("recipe search request", () => {
-  it("sends the search text as term, with paging, like the website", () => {
-    assert.deepEqual(recipeSearchBody({ query: "risotto" }), {
-      limit: 20,
-      offset: 0,
-      onlyContentPage: true,
-      term: "risotto",
+  it("puts query and ingredients into one search text", () => {
+    assert.equal(recipeSearchTerm({ query: " risotto ", ingredients: ["Pilze", " ", "Thymian"] }), "risotto Pilze Thymian");
+    assert.equal(recipeSearchTerm({ ingredients: ["Kürbis"] }), "Kürbis");
+    assert.equal(recipeSearchTerm({}), "");
+    assert.equal(recipeSearchTerm({ query: "x".repeat(500) }).length, 200);
+  });
+
+  it("builds the list page address for each language", () => {
+    assert.equal(recipeOverviewUrl("risotto", "de"), "https://migusto.migros.ch/de/rezept-uebersicht?q=risotto");
+    assert.equal(recipeOverviewUrl("pâtes à la crème", "fr", 2), "https://migusto.migros.ch/fr/apercu-des-recettes?q=p%C3%A2tes+%C3%A0+la+cr%C3%A8me&page=2");
+    assert.equal(recipeOverviewUrl("", "it", 5), "https://migusto.migros.ch/it/panoramica-delle-ricette?page=5");
+    assert.equal(recipeOverviewUrl("a&page=9", "de"), "https://migusto.migros.ch/de/rezept-uebersicht?q=a%26page%3D9");
+  });
+
+  it("picks one page for any offset and limit, like the website's paging", () => {
+    assert.deepEqual(overviewPageFor(0, 20), { page: 1, startsAt: 0 });
+    assert.deepEqual(overviewPageFor(0, 24), { page: 1, startsAt: 0 });
+    assert.deepEqual(overviewPageFor(20, 10), { page: 2, startsAt: 0 }); // pages 1 to 3 hold everything so far
+    assert.deepEqual(overviewPageFor(30, 40), { page: 3, startsAt: 0 });
+    assert.deepEqual(overviewPageFor(60, 20), { page: 3, startsAt: 0 }); // only 12 of them fit, the AI can ask again
+    assert.deepEqual(overviewPageFor(100, 10), { page: 5, startsAt: 96 }); // later pages hold only their own 24
+  });
+
+  it("reads the recipe list from the page, even when it's split over several pushes", () => {
+    const found = recipesFromOverviewPage(listPage([card(1), card(2)]), "de");
+    assert.ok(found);
+    assert.equal(found.total, 223);
+    assert.deepEqual(found.recipes[0], {
+      id: "1001",
+      slug: "risotto-1",
+      title: "Risotto 1",
+      durationTotal: "PT30M",
+      rating: { count: 6, average: 4.5 },
+      teaser: "Cremig.",
+      image: "https://recipeimages.migros.ch/no-crop/resize-width-640/bb1/risotto-1-0-4-3.jpg",
+      url: "https://migusto.migros.ch/de/rezepte/risotto-1/1001",
     });
   });
 
-  it("adds ingredients to the search text", () => {
-    assert.equal(recipeSearchBody({ query: " risotto ", ingredients: ["Pilze", " ", "Thymian"] }).term, "risotto Pilze Thymian");
-    assert.equal(recipeSearchBody({ ingredients: ["Kürbis"] }).term, "Kürbis");
+  it("skips cards that aren't recipes", () => {
+    const story = { ...card(3), target: { type: "STORY", story: { id: "9" } } };
+    const found = recipesFromOverviewPage(listPage([card(1), story]), "de");
+    assert.deepEqual(found?.recipes.map((r) => r.id), ["1001"]);
   });
 
-  it("leaves term out when there is no text, and caps long text", () => {
-    assert.equal("term" in recipeSearchBody({ limit: 5, offset: 10 }), false);
-    assert.deepEqual(recipeSearchBody({ limit: 5, offset: 10 }), { limit: 5, offset: 10, onlyContentPage: true });
-    assert.equal((recipeSearchBody({ query: "x".repeat(500) }).term as string).length, 200);
+  it("returns null for a page without a recipe list", () => {
+    assert.equal(recipesFromOverviewPage("<html><body>Wartung</body></html>", "de"), null);
+    assert.equal(recipesFromOverviewPage('<script>self.__next_f.push([1,"\\"initialRecipeData\\":nope"])</script>', "de"), null);
   });
 
-  it("posts to the migros.ch recipe API with the guest token and language", async () => {
-    const { post, calls } = fakePost({ status: 200, data: searchAnswer });
-    const result = await searchRecipesRequest({ query: "risotto", limit: 3 }, "fr", "guest-token", post);
+  it("gets the right page from Migusto and cuts out offset..offset+limit, without a token", async () => {
+    const cards = Array.from({ length: 48 }, (_, i) => card(i));
+    const { get, calls } = fakeGet({ status: 200, data: listPage(cards) });
+    const result = await searchRecipesRequest({ query: "risotto", offset: 30, limit: 5 }, "de", get);
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, "https://www.migros.ch/recipe/public/v1/recipes");
-    assert.deepEqual(calls[0].body, { limit: 3, offset: 0, onlyContentPage: true, term: "risotto" });
-    assert.equal(calls[0].headers.leshopch, "guest-token");
-    assert.equal(calls[0].headers["migros-language"], "fr");
+    assert.equal(calls[0].url, "https://migusto.migros.ch/de/rezept-uebersicht?q=risotto&page=2");
+    assert.equal(calls[0].headers.leshopch, undefined);
     assert.equal(result.total, 223);
-    assert.equal(result.recipes.length, 2);
+    assert.deepEqual(result.recipes.map((r) => r.id), ["1030", "1031", "1032", "1033", "1034"]);
   });
 
-  it("throws on an error status", async () => {
-    const { post } = fakePost({ status: 403, data: "<html>maintenance</html>" });
-    await assert.rejects(searchRecipesRequest({ query: "x" }, "de", "t", post), /403/);
+  it("counts from the page's first recipe after page 3", async () => {
+    const cards = Array.from({ length: 24 }, (_, i) => card(96 + i));
+    const { get, calls } = fakeGet({ status: 200, data: listPage(cards) });
+    const result = await searchRecipesRequest({ query: "risotto", offset: 100, limit: 2 }, "de", get);
+    assert.equal(calls[0].url, "https://migusto.migros.ch/de/rezept-uebersicht?q=risotto&page=5");
+    assert.deepEqual(result.recipes.map((r) => r.id), ["1100", "1101"]);
+  });
+
+  it("throws on an error status or a page it can't read", async () => {
+    await assert.rejects(searchRecipesRequest({ query: "x" }, "de", fakeGet({ status: 503, data: "" }).get), /503/);
+    await assert.rejects(
+      searchRecipesRequest({ query: "x" }, "de", fakeGet({ status: 200, data: "<html></html>" }).get),
+      /has changed/
+    );
   });
 });
 

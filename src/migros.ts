@@ -156,15 +156,17 @@ export async function getPromotions(query: string): Promise<unknown> {
 }
 
 // ---------------------------------------------------------------------------
-// Recipes: migros.ch recipe API (search, by id) and Migusto pages (by slug).
-// The wrapper's Migusto calls hit an API Migusto removed, see recipes.ts.
+// Recipes: Migusto pages (search, details by slug) and the migros.ch recipe
+// API (one recipe by id). The wrapper's Migusto calls hit an API Migusto
+// removed, see recipes.ts.
 // ---------------------------------------------------------------------------
 
+/** No token: Migusto's recipe list is a public web page. */
 export async function searchRecipes(
   args: RecipeSearchArgs,
   language: RecipeLanguage
 ): Promise<{ total?: number; recipes: RecipeSummary[] }> {
-  return withToken((token) => searchRecipesRequest(args, language, token));
+  return searchRecipesRequest(args, language);
 }
 
 export async function getRecipe(id: string, language: RecipeLanguage): Promise<Record<string, unknown>> {

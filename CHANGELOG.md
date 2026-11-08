@@ -8,13 +8,14 @@ All notable changes to this project are documented here. The format is based on 
 
 - **Three tools that stopped working for everyone are back.** Migros moved two of the addresses this server used.
   - `get_categories` answered 404. It now reads the category tree from Migros's new address.
-  - `search_recipes` and `get_recipe_products` got a web page instead of data, because Migusto (Migros's recipe site) moved to a new website and switched off its old API. They now use migros.ch's own recipe API, which has the same recipes and the same recipe ids.
+  - `search_recipes` and `get_recipe_products` got a web page instead of data, because Migusto (Migros's recipe site) moved to a new website and switched off its old API. `search_recipes` now reads Migusto's recipe list (the page its search box leads to), 24 recipes per page, with `limit` and `offset` working as before. `get_recipe_products` uses migros.ch's own recipe API, which has the same recipes and the same recipe ids. (migros.ch's API has a search too, but it ignores the search text.)
   - `get_recipe_details` kept working but always returned an empty `id`. It now returns the recipe's id, plus `url`, `description` and `nutrition`.
+- `get_product_details` showed "CHF undefined" for a product Migros lists without a price (for example out of season). The price is now left out instead.
 
 ### Changed
 
 - **`get_recipe_products` returns products, not just ids.** Before: `{ productIds }`, Migusto's raw list. Now: `recipeId`, `title`, `count`, `total`, `products` (each with `uid`, `migrosId`, `name`, `brand`, `price`, `quantity` where Migros knows them) and `productIds`, which now holds the **uids** that `add_to_basket` takes. The products are the ones Migusto suggests for the recipe under "Zutaten in deiner Migros". `recipeId` must be the numeric id from `search_recipes`.
-- `search_recipes` keeps its fields. `url` now points at the new Migusto address (`/de/rezepte/<slug>/<id>`), and `image` is a 640-pixel-wide picture.
+- `search_recipes` keeps its fields. `url` now points at the new Migusto address (`/de/rezepte/<slug>/<id>`), `image` is a 640-pixel-wide picture and `total` is the number of matching recipes. If `offset` and `limit` reach past the page Migusto sends, fewer recipes come back; ask again from the next offset.
 
 ### Security
 

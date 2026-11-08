@@ -110,10 +110,12 @@ function formatProduct(product: Record<string, unknown>): Record<string, unknown
   // Price info (under offer.price)
   const offer = p.offer as Record<string, unknown> | undefined;
   const offerPrice = offer?.price as Record<string, unknown> | undefined;
-  if (offerPrice) {
+  // Some products come without a price (e.g. out of season): leave it out
+  // rather than showing "CHF undefined".
+  if (offerPrice && offerPrice.advertisedDisplayValue != null) {
     formatted.price = `CHF ${offerPrice.advertisedDisplayValue}`;
     const unitPrice = offerPrice.unitPrice as Record<string, unknown> | undefined;
-    if (unitPrice) {
+    if (unitPrice && unitPrice.value != null) {
       formatted.unitPrice = `CHF ${unitPrice.value}/${unitPrice.unit}`;
     }
   }

@@ -1,14 +1,19 @@
-import { defaultGet, defaultPost, getMigros, migrosHeaders, postMigros, type Get, type Post } from "./http.js";
+import { defaultGet, getMigros, migrosHeaders, type Get } from "./http.js";
 
 /**
  * Recipes (Migusto, Migros' recipe site).
  *
  * Migusto moved to a new website in 2026. Its old JSON API (`.rest/recipes/v1`
  * and `.rest/recipeProducts/v1`, which migros-api-wrapper calls) now answers
- * with a 404 web page (checked 08.11.2026). migros.ch has its own recipe API
- * with the same recipes and ids, anonymous with the guest token: search and
- * full recipes come from there. Recipe details by slug come from the Migusto
- * recipe page, which still carries the recipe as schema.org data.
+ * with a 404 web page (checked 08.11.2026). What replaces it:
+ *
+ * - search: Migusto's recipe list page, `/de/rezept-uebersicht?q=<text>`.
+ *   migros.ch also has a recipe search API, but it ignores search text
+ *   (checked live 08.11.2026: "risotto" gave the season's marroni recipes).
+ * - one recipe by id, with its suggested products: migros.ch's recipe API,
+ *   anonymous with the guest token. Same recipes and ids as Migusto.
+ * - details by slug: the Migusto recipe page, which carries the recipe as
+ *   schema.org data.
  */
 
 export const RECIPE_LANGUAGES = ["de", "fr", "it"] as const;
@@ -21,15 +26,19 @@ export function recipeLanguage(language?: string): RecipeLanguage {
 
 const MIGUSTO_ORIGIN = "https://migusto.migros.ch";
 const RECIPE_SEGMENT: Record<RecipeLanguage, string> = { de: "rezepte", fr: "recettes", it: "ricette" };
+const OVERVIEW_SEGMENT: Record<RecipeLanguage, string> = {
+  de: "rezept-uebersicht",
+  fr: "apercu-des-recettes",
+  it: "panoramica-delle-ricette",
+};
+const HTML_HEADERS = { accept: "text/html,application/xhtml+xml,*/*" };
 
 /** Image addresses come with a `{stack}` placeholder for the size; Migusto fills in a width. */
 const IMAGE_STACK = "no-crop/resize-width-640";
 
 // ---------------------------------------------------------------------------
-// Search (migros.ch recipe API)
+// Search (Migusto recipe list page)
 // ---------------------------------------------------------------------------
-
-const RECIPES_PATH = "/recipe/public/v1/recipes";
 
 export interface RecipeSearchArgs {
   query?: string;
@@ -39,22 +48,41 @@ export interface RecipeSearchArgs {
 }
 
 /**
- * The search body. migros.ch sends `{...filters, onlyContentPage: true}`;
- * the search text goes in `term`, the name Migusto's own search uses for it.
- * Ingredients are added to the search text, as Migusto's search box takes
- * "recipe, ingredients or category" in one field.
+ * The search text. Ingredients are added to it, as Migusto's search box
+ * takes "Rezept, Zutaten oder Kategorie" (recipe, ingredients or category)
+ * in one field.
  */
-export function recipeSearchBody(args: RecipeSearchArgs): Record<string, unknown> {
-  const words = [args.query, ...(args.ingredients ?? [])]
+export function recipeSearchTerm(args: RecipeSearchArgs): string {
+  return [args.query, ...(args.ingredients ?? [])]
     .map((w) => (typeof w === "string" ? w.trim() : ""))
-    .filter(Boolean);
-  const body: Record<string, unknown> = {
-    limit: args.limit ?? 20,
-    offset: args.offset ?? 0,
-    onlyContentPage: true,
-  };
-  if (words.length > 0) body.term = words.join(" ").slice(0, 200);
-  return body;
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, 200);
+}
+
+/** Recipes per page on Migusto's list. */
+export const PAGE_SIZE = 24;
+
+/**
+ * Which list page holds recipes offset..offset+limit, and the position of
+ * its first recipe. Like the website: pages 1 to 3 hold everything up to
+ * that page, later pages only their own 24. One page per call; if the range
+ * runs past it, fewer recipes come back and the AI can ask again from there.
+ */
+export function overviewPageFor(offset: number, limit: number): { page: number; startsAt: number } {
+  const end = offset + limit;
+  if (end <= 3 * PAGE_SIZE) return { page: Math.max(1, Math.ceil(end / PAGE_SIZE)), startsAt: 0 };
+  const page = Math.floor(offset / PAGE_SIZE) + 1;
+  if (page <= 3) return { page: 3, startsAt: 0 };
+  return { page, startsAt: (page - 1) * PAGE_SIZE };
+}
+
+export function recipeOverviewUrl(term: string, language: RecipeLanguage, page = 1): string {
+  const params = new URLSearchParams();
+  if (term) params.set("q", term);
+  if (page > 1) params.set("page", String(page));
+  const qs = params.toString();
+  return `${MIGUSTO_ORIGIN}/${language}/${OVERVIEW_SEGMENT[language]}${qs ? `?${qs}` : ""}`;
 }
 
 export interface RecipeSummary {
@@ -81,8 +109,10 @@ export function imageUrl(image: unknown): string | undefined {
   let url: string | undefined;
   if (typeof image === "string") url = image;
   else if (image && typeof image === "object") {
-    const img = image as { url?: unknown; src?: unknown; sources?: Array<{ url?: unknown }> };
-    url = str(img.url) ?? str(img.src) ?? (Array.isArray(img.sources) ? str(img.sources[0]?.url) : undefined);
+    const img = image as { url?: unknown; src?: unknown; sources?: Array<{ url?: unknown; ratio?: unknown }> };
+    const sources = Array.isArray(img.sources) ? img.sources : [];
+    const pick = sources.find((x) => x?.ratio === "4-3") ?? sources[0];
+    url = str(img.url) ?? str(img.src) ?? str(pick?.url);
   }
   return url?.replace("{stack}", IMAGE_STACK);
 }
@@ -109,10 +139,13 @@ function absoluteUrl(url: string | undefined): string | undefined {
 
 /** One recipe of a search answer, trimmed to what helps pick a recipe. */
 export function recipeSummary(r: Record<string, unknown>, language: RecipeLanguage): RecipeSummary | null {
-  const id = idOf(r.id);
+  // Migusto's list cards say what they link to; skip anything that isn't a recipe.
+  const target = r.target as { type?: unknown; recipe?: { id?: unknown; slug?: unknown } } | undefined;
+  if (target?.type !== undefined && target.type !== "RECIPE") return null;
+  const id = idOf(target?.recipe?.id) ?? idOf(r.id);
   if (!id) return null;
   const canonical = absoluteUrl(str(r.canonicalUrl) ?? str(r.url));
-  const slug = str(r.slug) ?? slugFromRecipeUrl(canonical);
+  const slug = str(target?.recipe?.slug) ?? str(r.slug) ?? slugFromRecipeUrl(canonical);
   return {
     id,
     slug,
@@ -138,19 +171,83 @@ export function recipesFromSearch(
   return { total, recipes };
 }
 
+/** The text Next.js streams into the page (`self.__next_f.push([1, "..."])`), joined. */
+function nextFlightData(html: string): string {
+  const chunks: string[] = [];
+  for (const m of html.matchAll(/self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)/g)) {
+    try {
+      chunks.push(JSON.parse(m[1]) as string);
+    } catch {
+      // a chunk we can't read; the recipe list is usually in another one
+    }
+  }
+  return chunks.join("");
+}
+
+/** The JSON object or array that starts at `start`, or undefined. */
+function jsonValueAt(text: string, start: number): unknown {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (c === "\\") i++;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === "{" || c === "[") depth++;
+    else if (c === "}" || c === "]") {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.parse(text.slice(start, i + 1));
+        } catch {
+          return undefined;
+        }
+      }
+    }
+    if (depth === 0 && i === start) return undefined; // not an object or array
+  }
+  return undefined;
+}
+
+/**
+ * The recipes on a Migusto recipe list page, or null if the page has no
+ * recipe list (then Migusto changed its page and this needs a look).
+ */
+export function recipesFromOverviewPage(
+  html: string,
+  language: RecipeLanguage
+): { total?: number; recipes: RecipeSummary[] } | null {
+  const key = '"initialRecipeData":';
+  for (const text of [nextFlightData(html), html]) {
+    const at = text.indexOf(key);
+    if (at === -1) continue;
+    const data = jsonValueAt(text, at + key.length);
+    if (data && typeof data === "object") return recipesFromSearch(data, language);
+  }
+  return null;
+}
+
 export async function searchRecipesRequest(
   args: RecipeSearchArgs,
   language: RecipeLanguage,
-  token: string,
-  post: Post = defaultPost
+  get: Get = defaultGet
 ): Promise<{ total?: number; recipes: RecipeSummary[] }> {
-  const data = await postMigros(post, RECIPES_PATH, recipeSearchBody(args), migrosHeaders(token, language));
-  return recipesFromSearch(data, language);
+  const offset = args.offset ?? 0;
+  const limit = args.limit ?? 20;
+  const { page, startsAt } = overviewPageFor(offset, limit);
+  const r = await get(recipeOverviewUrl(recipeSearchTerm(args), language, page), HTML_HEADERS);
+  if (r.status < 200 || r.status >= 300) throw new Error(`GET Migusto recipe list -> ${r.status}`);
+  const found = typeof r.data === "string" ? recipesFromOverviewPage(r.data, language) : null;
+  if (!found) throw new Error("Migusto's recipe list page has changed: no recipe list found on it");
+  return { total: found.total, recipes: found.recipes.slice(offset - startsAt, offset - startsAt + limit) };
 }
 
 // ---------------------------------------------------------------------------
 // One recipe by id (migros.ch recipe API)
 // ---------------------------------------------------------------------------
+
+const RECIPES_PATH = "/recipe/public/v1/recipes";
 
 /** Recipe ids are numbers (e.g. 39632). Anything else never reaches the request path. */
 export function checkRecipeId(id: string): string {
