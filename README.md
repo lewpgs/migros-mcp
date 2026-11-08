@@ -1,93 +1,46 @@
 # migros-mcp
 
-Search [Migros](https://www.migros.ch) products and (optionally) manage your basket, addresses, and orders through Claude.
+Lets Claude (and other AI apps) search [Migros](https://www.migros.ch) products, recipes, stores and promotions. Sign in, and it can also manage your basket and look up your orders, receipts and Cumulus points.
 
-> **Important**
-> This is **not affiliated with Migros** in any way.
-> It uses publicly accessible API endpoints. There is no official Migros API.
-> It can **break at any time** if Migros changes their endpoints.
-> **Use at your own risk.**
-
-## What you can do
-
-**Without an account (anonymous access):**
-- "Search Migros for protein bars"
-- "What's the nutrition info for this Migros product?"
-- "Find Migros stores near Zurich"
-- "What promotions does Migros have right now?"
-- "Compare the protein content of these two products"
-- "Find me a recipe for risotto and add the ingredients to my basket" (combines anonymous recipe search with authenticated cart write)
-
-**With your Migros account (optional):**
-- "What's currently in my Migros basket?"
-- "Add 2 liters of milk to my basket"
-- "Remove the bananas from my basket"
-- "Where will my order be delivered to?"
-- "Show me my last 5 Migros orders"
-- "Give me the link to finish my checkout"
-- "How much did I spend at Migros last month?"
-- "What was on my last in-store receipt?"
-- "Which Cumulus coupons do I have right now?"
-- "How many Cumulus points do I have?"
-
-The basket and order tools require your Migros account credentials. They're optional. If you skip them at install, the anonymous tools still work.
+> **Unofficial.** Not made or supported by Migros. It uses the same behind-the-scenes addresses as the Migros website, so it can break whenever Migros changes them. Use at your own risk.
 
 ## Install
 
-migros-mcp runs on your own computer, so it works in apps that can start a program there: Claude Desktop, Claude Code, Cursor and similar. It doesn't work in claude.ai in a browser or in the Claude phone apps.
+It runs on your own computer, so it works in desktop apps that can start a program: Claude Desktop, Claude Code, Cursor and similar. It doesn't work on claude.ai in a browser or in the Claude phone apps.
 
-### Claude Desktop (recommended)
+### Claude Desktop
 
-1. Download [migros-mcp.mcpb](https://github.com/lewpgs/migros-mcp/releases/latest/download/migros-mcp.mcpb)
-2. Install it:
+1. Download **[migros-mcp.mcpb](https://github.com/lewpgs/migros-mcp/releases/latest/download/migros-mcp.mcpb)**.
+2. Open Claude's settings: on Windows, the menu > **File** > **Settings**. On a Mac, **Claude** > **Settings** in the menu bar.
+3. Go to **Desktop app**, scroll down to **Extensions** and click **Manage**.
+4. Drag the downloaded file onto that page, then click **Install**.
+5. Claude asks for your Migros details. Leave them all blank to only search. Fill in your email and password to use your basket and orders (see [Your Migros account](#your-migros-account)).
 
-   **macOS**: Double-click the file, or drag and drop it onto the Claude Desktop app icon
-
-   **Windows**: In Claude Desktop, go to File > Settings > Extensions > Advanced Settings > Install Extension and select the file
-
-3. Optional: enter your Migros email, password, and TOTP secret if you want the basket/order tools. Leave all three blank for anonymous access only. Credentials are stored in your OS keychain by Claude Desktop.
-
-   **About the TOTP secret.** This is **NOT** the rotating 6-digit code your authenticator app shows. It is the **static base32 seed** given to you (or scanned via QR code) when you originally set up the authenticator. It's a one-time value, typically ~32 characters of `A-Z2-7` (for example: `JBSWY3DPEHPK3PXP3PXP3PXP3PXP3PXP`), and it doesn't change every 30 seconds.
-
-   How to find it:
-
-   - **If you saved it during enrollment**: copy it from your password manager. In 1Password / Bitwarden / Proton Pass, open the Migros entry, edit the OTP field, choose *"View one-time password secret"* (or similar). The string after `secret=` is what you want.
-   - **If you didn't save it**: Migros only shows the seed during initial 2FA setup, on the same screen as the QR code, in a box labeled *"Or enter the following key in the authenticator app:"*. Once enrollment completes, the seed is gone for good.
-
-     To recover it: in Migros account settings, **remove** your existing 2FA, then **set it up again**. The new setup screen will show the new seed text below the QR code. Copy it before completing enrollment, and re-add the new entry to your authenticator app.
-
-   Leave the field blank entirely if your Migros account doesn't have 2FA enabled.
-
-   **Rather not store the seed?** Leave the TOTP field blank. When Claude needs to log in, it asks you for the current 6-digit code from your authenticator app (or reads it from a password manager it has access to) and passes it to the `authenticate` tool. The code is used for that one login and is not stored.
-
-That's it.
-
----
-
-## Advanced setup
-
-These methods require [Node.js 18+](https://nodejs.org).
+Nothing else to install.
 
 ### Claude Code
 
-```bash
-# Anonymous (search/browse only)
-claude mcp add migros -- npx -y migros-mcp
+Needs [Node.js](https://nodejs.org) 22 or newer.
 
-# With your account (basket + orders)
+```bash
+claude mcp add migros -- npx -y migros-mcp
+```
+
+With your Migros account:
+
+```bash
 claude mcp add migros \
   -e MIGROS_EMAIL=you@example.com \
   -e MIGROS_PASSWORD='your-password' \
-  -e MIGROS_TOTP_SECRET=ABCDEFGHIJKLMNOP \
   -- npx -y migros-mcp
 ```
 
-### Claude Desktop (manual) / Cursor
+### Cursor and other apps
 
-Add to your config:
+Needs [Node.js](https://nodejs.org) 22 or newer. Add this to the app's MCP config file:
 
-- **Claude Desktop**: `claude_desktop_config.json`
-- **Cursor**: `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global)
+- **Cursor:** `~/.cursor/mcp.json` (all projects) or `.cursor/mcp.json` (one project)
+- **Claude Desktop without the installer:** Settings > Developer > Edit Config
 
 ```json
 {
@@ -97,99 +50,148 @@ Add to your config:
       "args": ["-y", "migros-mcp"],
       "env": {
         "MIGROS_EMAIL": "you@example.com",
-        "MIGROS_PASSWORD": "your-password",
-        "MIGROS_TOTP_SECRET": "ABCDEFGHIJKLMNOP"
+        "MIGROS_PASSWORD": "your-password"
       }
     }
   }
 }
 ```
 
-The `env` block is optional. Omit it to use anonymous tools only. Leave out `MIGROS_TOTP_SECRET` if you'd rather give Claude the current 6-digit code when it needs to log in (see `authenticate` below).
+Leave out the `env` block to only search. Other apps (VS Code, Windsurf, Zed and so on) run the same command, `npx -y migros-mcp`, but lay out their config a little differently. Check your app's MCP instructions.
 
-### Test connection
+### Check that it works
 
-```bash
-npx migros-mcp                                                # anonymous
-MIGROS_EMAIL=... MIGROS_PASSWORD=... MIGROS_TOTP_SECRET=... npx migros-mcp   # authenticated
-```
+Start a new chat and ask: *"Search Migros for oat milk."*
+
+## Your Migros account
+
+Optional. Without it, product search, product details, stock, stores, promotions and recipes all work.
+
+With it, Claude can also see and change your basket and look up your orders, in-store receipts and Cumulus points. It **never places an order or pays**. It gives you a checkout link, and you finish on migros.ch yourself.
+
+What to enter depends on how you sign in to migros.ch:
+
+| You sign in with | Enter |
+|---|---|
+| Email and password | Email and password. Done. |
+| Email, password and a 6-digit code from an authenticator app | Email and password. When Claude needs to sign in, it asks you for the current code. That only happens when Migros ends the saved login, not in every chat. |
+| The same, but you never want to be asked for a code | Email, password and your **setup key** (see below). |
+
+<details>
+<summary><b>Finding your setup key</b> (only needed for the last option)</summary>
+
+<br>
+
+The setup key (also called the TOTP secret) is **not** the 6-digit code. It's the long code, about 32 letters and digits like `JBSWY3DPEHPK3PXP...`, that you got when you first added Migros to your authenticator app. It never changes.
+
+- **Saved in a password manager?** Open the Migros entry and look for an option like "View one-time password secret". If you see a link starting with `otpauth://`, the setup key is the part after `secret=`.
+- **Not saved anywhere?** Migros only shows it while you set up 2FA. In your Migros account settings, remove 2FA and set it up again. Under the QR code is a box saying *"Or enter the following key in the authenticator app"*. Copy that key before you finish, and add the new entry to your authenticator app.
+
+In Claude Desktop it goes in the *Migros TOTP Secret* field. Everywhere else, add `MIGROS_TOTP_SECRET` next to the email and password (`-e MIGROS_TOTP_SECRET=...` with `claude mcp add`, or one more line in the `env` block).
+
+</details>
+
+Only codes from an authenticator app work. If your account uses a passkey only, or codes by SMS, add an authenticator app in your Migros account settings first.
+
+## What you can ask
+
+Without an account:
+
+- "Search Migros for protein bars"
+- "What's the nutrition info for this product?"
+- "Find Migros stores near Zurich"
+- "What promotions does Migros have right now?"
+- "Find me a risotto recipe"
+
+With your account:
+
+- "What's in my Migros basket?"
+- "Add 2 litres of milk to my basket"
+- "Add the ingredients for this recipe to my basket"
+- "Show me my last 5 Migros orders"
+- "How much did I spend at Migros last month?"
+- "What was on my last in-store receipt?"
+- "Which Cumulus coupons do I have?"
+- "Give me the link to finish my checkout"
 
 ## Updating
 
-The recommended install commands above use `npx -y migros-mcp` without pinning a version, so you auto-receive new releases. Recent npm versions check for the newest version each time `npx` starts, so an update lands the next time your MCP host starts the server. If it seems stuck on an old version, run `npm cache clean --force` and restart the host.
-
-If you've installed via the **drag-installed `.mcpb`** instead, Claude Desktop pins you to that specific version. Download the latest `.mcpb` from [Releases](https://github.com/lewpgs/migros-mcp/releases) and re-install to update. Your credentials in the OS keychain are preserved across re-installs.
-
-If you've **explicitly pinned** a version in your config (e.g. `migros-mcp@0.3.0`), update by editing the version number or removing the pin entirely.
-
-**Update notice.** So that nobody stays on an old version without knowing, the server asks the npm registry for the newest version number about once a day, while you're using it. When a newer version is out, one answer a day ends with a short line saying so, with a link to this section. Nothing about you is sent: it's the same public lookup `npm` does (npm sees your IP address, as with any download). To turn it off: in Claude Desktop, untick *Tell me when a new version is out* in the extension's settings (Settings > Extensions). Anywhere else, set `MIGROS_MCP_UPDATE_CHECK=false` in the server's environment (the `env` block in your config, or `-e MIGROS_MCP_UPDATE_CHECK=false` with `claude mcp add`).
-
-## Available tools
-
-### Anonymous (no credentials needed)
-
-| Tool | Description |
+| You installed with | To update |
 |---|---|
-| `search_products` | Search Migros products by name or keyword, including products sold only online (such as "Partner" products). Returns product IDs. |
-| `get_product_details` | Full product info: nutrition, ingredients, allergens, price, ratings. Online-only products also get their online price and a Partner flag. |
-| `get_stock` | Check product availability at a specific Migros store. Updated once daily. |
-| `get_categories` | List all Migros product categories. |
-| `search_stores` | Find Migros stores by location with addresses and opening hours. |
-| `get_promotions` | Search current Migros promotions and deals. |
-| `search_recipes` | Search Migusto (Migros' recipe site) by query and/or ingredients. German/French/Italian only. |
-| `get_recipe_details` | Full recipe by slug: ingredients, instructions, photos, nutrition. |
-| `get_recipe_products` | The Migros products Migusto suggests for a recipe, with name, price and the UID to pass straight to `add_to_basket`. |
+| `npx -y migros-mcp` (Claude Code, Cursor, a config file) | Nothing to do. You get the new version the next time the app starts. |
+| The `.mcpb` file in Claude Desktop | Download the [latest migros-mcp.mcpb](https://github.com/lewpgs/migros-mcp/releases/latest/download/migros-mcp.mcpb) and open it again. Your saved details stay. |
+| A fixed version, like `migros-mcp@0.4.0` | Change the number, or remove `@0.4.0` to always get the newest. |
 
-### Authenticated (require credentials)
+Stuck on an old version with npx? Run `npm cache clean --force` and restart the app.
 
-| Tool | Description |
+**Update notice.** About once a day, while you use it, migros-mcp asks the npm registry for the newest version number. If a newer one is out, one answer a day ends with a short line saying so. Nothing about you is sent (npm sees your IP address, as with any download). To turn it off: in Claude Desktop, untick *Tell me when a new version is out* in the extension's settings (Settings > Desktop app > Extensions > Manage). Anywhere else, set `MIGROS_MCP_UPDATE_CHECK=false` (`-e MIGROS_MCP_UPDATE_CHECK=false` with `claude mcp add`, or one more line in the `env` block).
+
+## Privacy and safety
+
+- Your email, password and setup key are only ever sent to Migros' own login page (`login.migros.ch`). A 6-digit code you give Claude is used for that one sign-in and never stored or logged.
+- The Claude Desktop installer keeps your password and setup key in your computer's keychain. With npx (Claude Code, Cursor, a config file) they sit in plain text in that app's config file.
+- Once you're signed in, the saved login (cookies and an access token) stays on your computer, in `session.json`:
+  - Mac: `~/Library/Application Support/migros-mcp/`
+  - Windows: `%APPDATA%\migros-mcp\`
+  - Linux: `~/.config/migros-mcp/` (or `$XDG_CONFIG_HOME/migros-mcp/`)
+
+  Deleting that file signs you out.
+- It never places orders or pays. `get_checkout_link` gives you a link, and you finish on migros.ch.
+
+## Troubleshooting
+
+- **"Too many requests" or other sign-in errors.** Migros blocks computers that sign in too often. When that happens, migros-mcp stops trying for a while on its own (30 seconds at first, longer if it keeps happening) and keeps using your current login while it's still valid. The error says until when. Wait until then before trying again. Restarting the app over and over, or a wrong password, makes it worse.
+- **Something that used to work fails.** Migros may have changed its website. Update to the newest version (see [Updating](#updating)), and if it still fails, [open an issue](https://github.com/lewpgs/migros-mcp/issues).
+
+## Tools
+
+These are what Claude calls behind the scenes. You don't need them to use it.
+
+**Without an account**
+
+| Tool | What it does |
 |---|---|
-| `authenticate` | Log in with the current six-digit 2FA code. Only needed when no TOTP secret is set. Reuses a cached session when possible. |
-| `get_profile` | Logged-in customer's basic profile (name, email, language). |
-| `get_addresses` | Saved delivery and billing addresses. |
-| `get_shopping_lists` | The user's shopping lists by name, for people with more than one. Pass a list's id to the basket tools. |
-| `get_basket` | Items currently in the user's basket. |
-| `add_to_basket` | Add a product (sets target quantity, default 1). |
-| `update_basket_quantity` | Set an item's exact quantity (0 to remove). |
-| `remove_from_basket` | Remove an item entirely. |
-| `get_orders` | List your online orders, paginated, filterable by status. |
-| `get_order_details` | Full details of a single order by id. |
-| `get_checkout_link` | Returns the URL to open in your browser to complete checkout. |
-| `get_cumulus_status` | Cumulus loyalty card status: points balance, level, cardholder. |
-| `get_in_store_receipts` | List in-store receipts (Kassenbons) over a date range. |
-| `get_receipt_details` | URL to view a single in-store receipt's line items in the browser. |
-| `get_cumulus_coupons` | Active personalized Cumulus coupons. |
+| `search_products` | Search products by name or keyword, including ones sold only online (such as "Partner" products). |
+| `get_product_details` | Nutrition, ingredients, allergens, price and ratings. Online-only products also get their online price and a Partner flag. |
+| `get_stock` | Whether a product is in stock at a given store. Updated once a day. |
+| `get_categories` | All Migros product categories. |
+| `search_stores` | Stores near a place, with addresses and opening hours. |
+| `get_promotions` | Current promotions and deals. |
+| `search_recipes` | Search Migusto, Migros' recipe site, by text and/or ingredients. German, French and Italian only. |
+| `get_recipe_details` | A full recipe: ingredients, steps, photos, nutrition. |
+| `get_recipe_products` | The Migros products Migusto suggests for a recipe, with name and price, ready for `add_to_basket`. |
 
-## How it works
+**With your account**
 
-### Anonymous tools
-Use the [migros-api-wrapper](https://www.npmjs.com/package/migros-api-wrapper) which calls the same endpoints the Migros website uses internally. A guest token is fetched at startup and cached.
+| Tool | What it does |
+|---|---|
+| `authenticate` | Sign in with the current 6-digit code. Only used when no setup key is saved. |
+| `get_profile` | Your name, email and language. |
+| `get_addresses` | Your saved delivery and billing addresses. |
+| `get_shopping_lists` | Your shopping lists by name, for people with more than one. |
+| `get_basket` | What's in your basket. |
+| `add_to_basket` | Add a product (1 by default). |
+| `update_basket_quantity` | Set how many of an item you want (0 removes it). |
+| `remove_from_basket` | Remove an item. |
+| `get_orders` | Your online orders, page by page, filterable by status. |
+| `get_order_details` | One order in full. |
+| `get_checkout_link` | A link to finish checkout on migros.ch. |
+| `get_cumulus_status` | Your Cumulus card: points, level, cardholder. |
+| `get_in_store_receipts` | Your in-store receipts (Kassenbons) for a date range. |
+| `get_receipt_details` | A link to see one receipt's items. |
+| `get_cumulus_coupons` | Your current personal Cumulus coupons. |
 
-### Authenticated tools
-Use OAuth 2.0 against `login.migros.ch`. The first call runs a credentialed login (email → password → TOTP) and caches the resulting cookies + access token. Every 30 minutes the token is refreshed silently using cached cookies, without submitting the login form again.
+<details>
+<summary><b>How it works</b></summary>
 
-With `MIGROS_TOTP_SECRET` set, the MCP makes the 2FA code itself. Without it, the AI passes the current code to `authenticate`: it asks the user, or reads it from a password manager it has access to (for example a 1Password MCP or the 1Password CLI). The code is used for that one login and is never stored or logged.
+<br>
 
-The cache is persisted across MCP process restarts (Claude Desktop launches, Mac reboots, etc.) so we re-authenticate maybe twice a year instead of dozens of times a day. Migros' login endpoint is behind Cloudflare bot detection that throttles frequent logins, so persistence is what keeps the MCP from getting rate-limited.
+- **Without an account**, it uses [migros-api-wrapper](https://www.npmjs.com/package/migros-api-wrapper) and the same addresses the Migros website calls, with a guest token it fetches at startup.
+- **With an account**, it signs in at `login.migros.ch` the way a browser does (email, then password, then the 2FA code if your account has one) and saves the login. The access token only lasts a short while, so it's renewed quietly from the saved login, without signing in again. A full sign-in only happens when Migros ends the saved login.
+- Saving the login matters because Migros' sign-in page sits behind Cloudflare, which blocks computers that sign in too often.
+- Without a setup key, once it knows your account needs a code, it waits until Claude has one before sending your password. That way it never starts a sign-in it can't finish.
 
-The session lives at:
-
-- macOS: `~/Library/Application Support/migros-mcp/session.json`
-- Linux: `$XDG_CONFIG_HOME/migros-mcp/session.json`
-- Windows: `%APPDATA%/migros-mcp/session.json`
-
-If the cached session expires (typically a few weeks), the MCP automatically re-runs the credentialed login.
-
-Without a stored TOTP secret, authenticated tools return `fresh_code_required` instead, and the AI calls `authenticate` with a new code. The MCP remembers that the account needs a code, so it doesn't send your password to Migros until it has one.
-
-### Order placement
-For safety, this MCP **does not** place orders programmatically. The `get_checkout_link` tool returns a URL the user opens in their real browser to confirm address, delivery slot, and payment via Migros' own checkout flow. Real money requires a real human click.
-
-## Known limitations
-
-- **2FA support is TOTP-only.** Accounts secured with a passkey (and no TOTP fallback) are not supported. If your Migros account uses passkey as the only second factor, add a TOTP authenticator app in Migros account settings, then provide the TOTP secret to this MCP, or pass the current code to `authenticate`.
-- **No automatic order placement.** See above: `get_checkout_link` hands off to your browser for the actual placement.
-- **Cloudflare rate limits.** The login host (`login.migros.ch`) sits behind Cloudflare bot detection. If the MCP triggers too many login attempts in quick succession (wrong password retries, repeated restarts without a cached session), the IP may be throttled. When this happens the MCP now sets a **cooldown** (respecting `Retry-After` headers or falling back to 30 s → 2 min → 10 min backoff) and **stops hitting the login host** until it clears. During cooldown, any **still-valid cached JWT keeps working** so your MCP tools may continue serving requests. Only re-authentication is paused. If the cached JWT is also expired while rate-limited the MCP will surface a clear error with the cooldown deadline rather than silently retrying and worsening the throttle.
+</details>
 
 ## Development
 
@@ -198,22 +200,14 @@ git clone https://github.com/lewpgs/migros-mcp.git
 cd migros-mcp
 npm install
 npm run build
-node dist/index.js
+npm test
 ```
 
-Debug with the MCP Inspector:
+Try it with the MCP Inspector:
 
 ```bash
-npx -y @modelcontextprotocol/inspector npx migros-mcp
+npx -y @modelcontextprotocol/inspector node dist/index.js
 ```
-
-## Disclaimers
-
-- **Unofficial**: Not affiliated with, endorsed by, or connected to Migros in any way.
-- **No official API**: Uses endpoints that power the Migros website. They are not documented or supported. Migros can change them without notice.
-- **Credentials**: When you provide credentials, they're used only to authenticate against `login.migros.ch`. A 6-digit code passed to `authenticate` is used for that one login and is never stored or logged. Resulting session cookies and access tokens are stored locally in your OS user config directory. They are never sent anywhere except Migros' own servers.
-- **No order placement**: This server does not place orders programmatically. Orders are completed in the user's own browser via the URL returned by `get_checkout_link`.
-- **Use at your own risk**: No guarantees of functionality, availability, or compatibility.
 
 ## License
 
