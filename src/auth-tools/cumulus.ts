@@ -2,32 +2,55 @@ import { api } from "../auth/api.js";
 import { credsFromEnv } from "./_shared.js";
 
 /**
- * Cumulus card status: points balance, level, cardholder, lifetime savings.
- * Useful as a "what's my Migros loyalty status" overview.
+ * The address the migros.ch website reads the Cumulus card from. The old one,
+ * `/retentionapi/public/web/v1/customers/cumulus/details`, answers 404 since
+ * November 2026.
  */
-export async function getCumulusStatus(): Promise<string> {
-  const data = (await api(
-    "GET",
-    "/retentionapi/public/web/v1/customers/cumulus/details",
-    undefined,
-    { creds: credsFromEnv() }
-  )) as Record<string, unknown>;
+export const CUMULUS_PROFILE_PATH = "/retentionapi/public/web/v1/cumulus-profile";
 
-  // The exact field set varies; surface the common ones the LLM will care about.
+/** Shape the Cumulus profile for the LLM. `null` means the account has no Cumulus card. */
+export function formatCumulusProfile(data: Record<string, unknown> | null): string {
+  if (!data) {
+    return JSON.stringify(
+      { hasCumulus: false, message: "No Cumulus card is linked to this Migros account." },
+      null,
+      2
+    );
+  }
   const owner = data.cumulusCardOwner as Record<string, unknown> | undefined;
+  const cardholder = owner ? `${owner.firstName ?? ""} ${owner.lastName ?? ""}`.trim() : "";
+  const memberships = Array.isArray(data.memberships) ? (data.memberships as unknown[]) : [];
   return JSON.stringify(
     {
-      cumulusId: data.cumulusId,
-      level: data.level ?? data.cumulusLevel,
-      pointsBalance: data.periodToDatePointsBalance ?? data.pointsBalance,
-      lifetimePoints: data.lifetimePoints ?? data.totalPoints,
-      cardholder: owner ? `${owner.firstName ?? ""} ${owner.lastName ?? ""}`.trim() : undefined,
-      cardholderTitle: owner?.title,
+      hasCumulus: true,
+      cumulusNumber: data.cumulusNumber,
+      pointsBalance: data.periodToDatePointsBalance,
+      cardholder: cardholder || undefined,
+      memberships,
+      isFamigrosMember: memberships.includes("FAMIGROS"),
+      hint: "pointsBalance is the points collected in the current period.",
       raw: data, // keep raw for the LLM in case it wants other fields
     },
     null,
     2
   );
+}
+
+/**
+ * Cumulus card: points collected this period, card number, cardholder and
+ * memberships (such as Famigros). Like the website, a 404 means the account
+ * has no Cumulus card.
+ */
+export async function getCumulusStatus(
+  fetchProfile: () => Promise<unknown> = () =>
+    api("GET", CUMULUS_PROFILE_PATH, undefined, { creds: credsFromEnv() })
+): Promise<string> {
+  try {
+    return formatCumulusProfile((await fetchProfile()) as Record<string, unknown>);
+  } catch (err) {
+    if (err instanceof Error && / -> 404\b/.test(err.message)) return formatCumulusProfile(null);
+    throw err;
+  }
 }
 
 /**
