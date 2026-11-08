@@ -203,6 +203,12 @@ npm run build
 npm test
 ```
 
+Check the tools that need no account against the live Migros website. GitHub also runs this every Monday, so a change on Migros' side shows up early:
+
+```bash
+npm run live-check
+```
+
 Try it with the MCP Inspector:
 
 ```bash

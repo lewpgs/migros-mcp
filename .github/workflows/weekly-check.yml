@@ -1,0 +1,39 @@
+name: Weekly check against Migros
+
+# Once a week, start the server without any account and call every tool that
+# needs no account against the live Migros website (scripts/live-check.mjs).
+# Migros moves its addresses without notice, so a failed run here is the early
+# warning. Read-only: no secrets, no account, no publishing. Also runs on pull
+# requests that change the check, and by hand from the Actions tab.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays, 06:17 UTC
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/weekly-check.yml"
+      - "scripts/live-check.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-check:
+    name: Tools without an account work
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm run live-check
