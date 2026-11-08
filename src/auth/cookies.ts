@@ -15,6 +15,13 @@ export interface Session {
   cookies: Record<string, Record<string, string>>;
   jwt: string | null;
   jwtExp: number; // unix seconds; 0 means "no JWT cached"
+  /**
+   * Unix epoch **milliseconds** when the login.migros.ch rate-limit cooldown
+   * ends. Absent or 0 means the host is not known to be rate-limiting.
+   */
+  rateLimitedUntil?: number;
+  /** Human-readable reason for the cooldown (carried from the 429 response). */
+  rateLimitReason?: string;
 }
 
 const EMPTY: Session = { cookies: {}, jwt: null, jwtExp: 0 };
@@ -28,6 +35,8 @@ export function loadSession(): Session {
       cookies: parsed.cookies ?? {},
       jwt: parsed.jwt ?? null,
       jwtExp: parsed.jwtExp ?? 0,
+      rateLimitedUntil: parsed.rateLimitedUntil,
+      rateLimitReason: parsed.rateLimitReason,
     };
   } catch (err) {
     // Missing file (ENOENT) or unreadable: treat as empty.

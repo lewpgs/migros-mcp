@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **429 Too Many Requests handling.** When `login.migros.ch` rate-limits the MCP (Cloudflare), the auth layer now:
+  - Parses `Retry-After` headers and applies a cooldown persisted in `session.json`.
+  - Never cascades a 429 from silent OAuth into a full credentialed login (they share the same host and throttle).
+  - Fails open: a still-valid cached JWT is returned even during cooldown so tools keep working.
+  - Raises the JWT refresh grace buffer from 60 s to 5 min to reduce silent-OAuth frequency.
+  - Falls back to exponential backoff (30 s → 2 min → 10 min) when `Retry-After` is missing.
+  - Surfaces a clear, actionable error when the JWT is expired AND the login host is rate-limited.
+
 ## [0.3.1] — 2026-04-28
 
 ### Documentation

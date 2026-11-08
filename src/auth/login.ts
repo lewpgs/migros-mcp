@@ -3,6 +3,7 @@ import type { AxiosResponse } from "axios";
 import type { Session } from "./cookies.js";
 import { ingestSetCookie } from "./cookies.js";
 import { client, uniformHeaders, silentOAuth } from "./oauth.js";
+import { parseRetryAfter, RateLimitError, setRateLimited } from "./rate-limit.js";
 
 export interface Credentials {
   email: string;
@@ -60,6 +61,15 @@ async function get(url: string, session: Session, extra: Record<string, string> 
   const host = new URL(url).host;
   const r = await client().get(url, { headers: uniformHeaders(host, session, { Accept: "text/html", ...extra }) });
   ingestSetCookie(session, host, r.headers["set-cookie"]);
+  if (r.status === 429) {
+    const retryAfter = parseRetryAfter(r.headers["retry-after"] as string | undefined);
+    setRateLimited(session, retryAfter, "login " + url + " -> 429");
+    throw new RateLimitError(
+      "login.migros.ch rate-limited (429) during GET " + url + ". " +
+        "Retry after: " + (retryAfter ?? "unknown") + "s",
+      retryAfter,
+    );
+  }
   return r;
 }
 
@@ -77,6 +87,15 @@ async function postForm(url: string, session: Session, body: Record<string, stri
     }),
   });
   ingestSetCookie(session, host, r.headers["set-cookie"]);
+  if (r.status === 429) {
+    const retryAfter = parseRetryAfter(r.headers["retry-after"] as string | undefined);
+    setRateLimited(session, retryAfter, "login POST " + url + " -> 429");
+    throw new RateLimitError(
+      "login.migros.ch rate-limited (429) during POST " + url + ". " +
+        "Retry after: " + (retryAfter ?? "unknown") + "s",
+      retryAfter,
+    );
+  }
   return r;
 }
 

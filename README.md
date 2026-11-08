@@ -177,7 +177,7 @@ For safety, this MCP **does not** place orders programmatically. The `get_checko
 
 - **2FA support is TOTP-only.** Accounts secured with a passkey (and no TOTP fallback) are not supported in v0.3.0. If your Migros account uses passkey as the only second factor, add a TOTP authenticator app in Migros account settings, then provide the TOTP secret to this MCP.
 - **No automatic order placement.** See above — `get_checkout_link` hands off to your browser for the actual placement.
-- **Cloudflare rate limits.** If the MCP fails the credentialed login repeatedly in a short window (e.g., wrong password retries), Cloudflare may briefly throttle the IP. Wait an hour and retry, or log in via your browser to refresh the session.
+- **Cloudflare rate limits.** The login host (`login.migros.ch`) sits behind Cloudflare bot detection. If the MCP triggers too many login attempts in quick succession (wrong password retries, repeated restarts without a cached session), the IP may be throttled. When this happens the MCP now sets a **cooldown** (respecting `Retry-After` headers or falling back to 30 s → 2 min → 10 min backoff) and **stops hitting the login host** until it clears. During cooldown, any **still-valid cached JWT keeps working** so your MCP tools may continue serving requests — only re-authentication is paused. If the cached JWT is also expired while rate-limited the MCP will surface a clear error with the cooldown deadline rather than silently retrying and worsening the throttle.
 
 ## Development
 
