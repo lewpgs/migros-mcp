@@ -19,7 +19,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/lewpgs/migros-mcp.git"
+    "url": "git+https://github.com/lewpgs/migros-mcp.git"
   },
   "homepage": "https://github.com/lewpgs/migros-mcp",
   "bugs": {
