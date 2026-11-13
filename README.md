@@ -217,4 +217,4 @@ npx -y @modelcontextprotocol/inspector node dist/index.js
 
 ## License
 
-MIT
+[MIT](LICENSE)
