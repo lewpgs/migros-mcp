@@ -41,7 +41,68 @@ export interface GetJwtOptions {
   tryLoginWithoutCode?: boolean;
 }
 
-export async function getJwt(creds?: Credentials, opts: GetJwtOptions = {}): Promise<string> {
+/**
+ * Runs logins one at a time. Without this, tool calls that arrive together
+ * (clients often send several at once) would each start their own login:
+ * Migros sees repeated half-finished logins and blocks the IP, and each login
+ * overwrites the cookies the other one saved. The second caller waits, then
+ * finds the fresh token in the saved session and doesn't log in again.
+ */
+let queue: Promise<unknown> = Promise.resolve();
+
+/**
+ * After a full login failed (wrong password, a bot check, a changed login
+ * page), every tool call would otherwise try again at once: ten calls, ten
+ * half-finished logins in a few seconds, which is what gets an IP blocked.
+ * So wait this long before the next try. Calling authenticate with a fresh
+ * 2FA code tries again right away (the user asked for it).
+ */
+export const LOGIN_BACKOFF_MS = 60_000;
+let failedLogin: { until: number; reason: string; needsCode?: boolean } | null = null;
+
+/** For tests only. */
+export function resetLoginBackoff(): void {
+  failedLogin = null;
+}
+
+/** A refresh was needed, but login.migros.ch is in a rate-limit cooldown. */
+export class CooldownError extends Error {}
+
+export function serialized<T>(task: () => Promise<T>): Promise<T> {
+  const run = queue.then(task, task);
+  queue = run.catch(() => undefined);
+  return run;
+}
+
+export function getJwt(creds?: Credentials, opts: GetJwtOptions = {}): Promise<string> {
+  return serialized(() => getJwtNow(creds, opts));
+}
+
+/**
+ * A fresh token after Migros rejected `rejected` with a 401. If another call
+ * already replaced it meanwhile, that one is used instead of refreshing again.
+ */
+export function refreshJwt(rejected: string): Promise<string> {
+  return serialized(async () => {
+    const session = loadSession();
+    if (session.jwt && session.jwt !== rejected) return session.jwt;
+    if (isRateLimited(session)) {
+      const until = session.rateLimitedUntil ? new Date(session.rateLimitedUntil).toISOString() : "unknown time";
+      throw new CooldownError(`token rejected, but login.migros.ch is rate-limited until ${until} — cannot refresh`);
+    }
+    try {
+      const jwt = await silentOAuth(session);
+      saveSession(session);
+      return jwt;
+    } catch (e) {
+      // Save the cooldown silentOAuth just set, so the next call doesn't retry.
+      if (e instanceof RateLimitError) saveSession(session);
+      throw e;
+    }
+  });
+}
+
+async function getJwtNow(creds: Credentials | undefined, opts: GetJwtOptions): Promise<string> {
   const session: Session = loadSession();
 
   // --- Rate-limit cooldown guard ---
@@ -104,8 +165,18 @@ export async function getJwt(creds?: Credentials, opts: GetJwtOptions = {}): Pro
   }
 
   // --- Path 3: full credentialed login ---
+  if (failedLogin && Date.now() < failedLogin.until && !creds.totpCode) {
+    // The last try stopped at the 2FA step: only a code helps, so say that.
+    if (failedLogin.needsCode && !creds.totpSecret) throw new FreshCodeRequiredError();
+    const wait = Math.ceil((failedLogin.until - Date.now()) / 1000);
+    throw new Error(
+      `the last Migros login failed (${failedLogin.reason}). Not trying again for ${wait} s, ` +
+        "so Migros doesn't block this computer."
+    );
+  }
   try {
     const jwt = await fullLogin(session, creds);
+    failedLogin = null;
     // Successful login clears any stale cooldown.
     clearRateLimit(session);
     saveSession(session);
@@ -118,6 +189,15 @@ export async function getJwt(creds?: Credentials, opts: GetJwtOptions = {}): Pro
       // so one 429 isn't counted twice by the backoff.
       if (!isRateLimited(session)) setRateLimited(session, e.retryAfterSeconds, e.message);
       saveSession(session);
+    }
+    if (!(e instanceof RateLimitError) && !(e instanceof FreshCodeRequiredError)) {
+      failedLogin = { until: Date.now() + LOGIN_BACKOFF_MS, reason: (e as Error).message };
+    }
+    if (e instanceof FreshCodeRequiredError && !creds.totpCode) {
+      // authenticate without a code sent the password and stopped at the 2FA
+      // step. Calling it again the same way would do the same: wait, unless
+      // a code comes.
+      failedLogin = { until: Date.now() + LOGIN_BACKOFF_MS, reason: "a 2FA code is needed", needsCode: true };
     }
     if (e instanceof FreshCodeRequiredError) {
       // Remember that this account needs a code. Start from the saved session
