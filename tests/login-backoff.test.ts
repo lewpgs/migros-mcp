@@ -10,7 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
-import { client } from "../src/auth/oauth.js";
+import { client, REQUEST_TIMEOUT_MS } from "../src/auth/oauth.js";
 import { getJwt, refreshJwt, resetLoginBackoff, serialized } from "../src/auth/index.js";
 import { saveSession } from "../src/auth/cookies.js";
 import { sessionFile } from "../src/auth/paths.js";
@@ -54,7 +54,13 @@ beforeEach(() => {
 afterEach(() => {
   client().defaults.adapter = undefined;
   resetLoginBackoff();
-  process.env = { ...savedEnv };
+  // Put back only the keys the tests changed. Reassigning process.env would
+  // swap Node's real environment for a plain object: os.homedir() on macOS
+  // reads the real one, so later tests would no longer use their temp dir.
+  for (const key of ["HOME", "APPDATA", "XDG_CONFIG_HOME"]) {
+    if (savedEnv[key] === undefined) delete process.env[key];
+    else process.env[key] = savedEnv[key];
+  }
   fs.rmSync(tmpConfig, { recursive: true, force: true });
 });
 
@@ -153,5 +159,10 @@ describe("one login at a time", () => {
     saveSession({ cookies: {}, jwt: "new-token-from-other-call", jwtExp: Math.floor(Date.now() / 1000) + 3600 });
     assert.equal(await refreshJwt("old-rejected-token"), "new-token-from-other-call");
     assert.equal(loginPageRequests, 0);
+  });
+
+  it("gives up on a request that gets no answer, so it can't hold up the queue", () => {
+    assert.equal(client().defaults.timeout, REQUEST_TIMEOUT_MS);
+    assert.ok(REQUEST_TIMEOUT_MS > 0 && REQUEST_TIMEOUT_MS <= 60_000);
   });
 });
