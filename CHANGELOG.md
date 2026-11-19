@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Fixed
+
+- **No more repeated logins.** Logins now run one at a time, so tool calls that arrive together no longer each start their own login or overwrite each other's saved cookies; after a rejected token, a call uses the token another call just got instead of refreshing again. After a failed login (wrong password, a bot check, a changed login page), the server waits 60 s before the next try, and the error says why and for how long; `authenticate` with a fresh 2FA code still tries at once. `authenticate` without a code on a 2FA account now sends the password once and then asks for the code, instead of sending it again on every call. When Migros answers with Cloudflare's bot check instead of the login page (from servers and VPNs), the error says so instead of "could not find CSRF token".
+- **Requests to Migros give up after 30 s** instead of waiting forever, so one that gets no answer can't hold up the logins and tool calls queued behind it.
+
 ### Added
 
 - A `LICENSE` file with the MIT license text. The package already said MIT; now the license itself ships with it, in the npm package and the Claude Desktop installer.

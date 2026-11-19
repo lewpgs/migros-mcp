@@ -1,8 +1,8 @@
 import type { AxiosResponse } from "axios";
-import { client, silentOAuth, uniformHeaders } from "./oauth.js";
+import { client, uniformHeaders } from "./oauth.js";
 import { ingestSetCookie, loadSession, saveSession, type Session } from "./cookies.js";
-import { getJwt } from "./index.js";
-import { isRateLimited, RateLimitError } from "./rate-limit.js";
+import { CooldownError, getJwt, refreshJwt } from "./index.js";
+import { RateLimitError } from "./rate-limit.js";
 import type { Credentials } from "./login.js";
 
 const BASE = "https://www.migros.ch";
@@ -41,13 +41,25 @@ async function makeRequest(
 }
 
 /**
+ * Store the cookies a response set. Reads the saved session afresh and writes
+ * it back in one synchronous step, so a login that finished while this
+ * request was out isn't overwritten with the older copy.
+ */
+function keepCookies(r: AxiosResponse): void {
+  if (!r.headers["set-cookie"]) return;
+  const session = loadSession();
+  ingestSetCookie(session, "www.migros.ch", r.headers["set-cookie"]);
+  saveSession(session);
+}
+
+/**
  * Make an authenticated request against any www.migros.ch path. Reuses the
  * persisted session, refreshes the JWT silently when needed, and falls back
  * to a full credentialed login if cookies have expired.
  *
  * On 401 (token rejected mid-request — e.g., user changed their password,
- * or the server invalidated the token early for any reason), forces a fresh
- * silent OAuth and retries once before giving up.
+ * or the server invalidated the token early for any reason), gets a fresh
+ * token by silent OAuth (or the one another call just got) and retries once.
  *
  * Returns the parsed response body. Throws with a descriptive error on non-2xx.
  */
@@ -61,41 +73,25 @@ export async function api(
 
   // First attempt with current cached / refreshed JWT.
   let jwt = await getJwt(opts.creds);
-  let session = loadSession();
-  let r = await makeRequest(method, path, body, jwt, language, session);
-  ingestSetCookie(session, "www.migros.ch", r.headers["set-cookie"]);
-  saveSession(session);
+  let r = await makeRequest(method, path, body, jwt, language, loadSession());
+  keepCookies(r);
 
-  // Token rejected? Force a silent refresh and retry once.
+  // Token rejected? Get a fresh one (or the one another call just got) and retry once.
   if (r.status === 401) {
-    session = loadSession();
-    // Never hammer the rate-limited host: if a cooldown is active, skip the
-    // refresh entirely and surface a clear error instead of firing another
-    // login-host request (which would 429 and extend the throttle).
-    if (isRateLimited(session)) {
-      const until = session.rateLimitedUntil
-        ? new Date(session.rateLimitedUntil).toISOString()
-        : "unknown time";
-      throw new Error(
-        `${method} ${path} -> 401 (token rejected, but login.migros.ch is rate-limited until ${until} — cannot refresh)`
-      );
-    }
     try {
-      jwt = await silentOAuth(session);
-      saveSession(session);
-      r = await makeRequest(method, path, body, jwt, language, session);
-      ingestSetCookie(session, "www.migros.ch", r.headers["set-cookie"]);
-      saveSession(session);
+      jwt = await refreshJwt(jwt);
     } catch (e) {
       // Rate-limit errors should always surface — swallowing them hides the
       // cooldown from the caller and defeats the cascade-prevention logic.
-      if (e instanceof RateLimitError) {
-        // Save the cooldown silentOAuth just set, so the next call doesn't retry.
-        saveSession(session);
-        throw e;
-      }
+      if (e instanceof RateLimitError) throw e;
+      if (e instanceof CooldownError) throw new Error(`${method} ${path} -> 401 (${e.message})`);
       // Silent refresh failed (cookies actually expired). Surface the original
       // 401 since that's more actionable than the silent-refresh error.
+      jwt = "";
+    }
+    if (jwt) {
+      r = await makeRequest(method, path, body, jwt, language, loadSession());
+      keepCookies(r);
     }
   }
 

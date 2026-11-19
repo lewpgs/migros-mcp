@@ -17,6 +17,13 @@ const UA = "Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144
 
 const REDIRECT_URI = "https://www.migros.ch/m-login-silent-login-redirect.html";
 
+/**
+ * How long a request to Migros may take before it is given up. Logins and
+ * token refreshes run one at a time (see serialized() in index.ts), so without
+ * a limit one request that never gets an answer would hold up every later call.
+ */
+export const REQUEST_TIMEOUT_MS = 30_000;
+
 let _client: AxiosInstance | null = null;
 export function client(): AxiosInstance {
   // Lazily build to avoid creating an https.Agent at module-load time.
@@ -25,6 +32,7 @@ export function client(): AxiosInstance {
     httpsAgent: new https.Agent({ minVersion: "TLSv1.3" }),
     validateStatus: () => true,
     maxRedirects: 0,
+    timeout: REQUEST_TIMEOUT_MS,
   });
   return _client;
 }

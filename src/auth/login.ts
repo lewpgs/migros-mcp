@@ -78,9 +78,21 @@ export function otpCodeFor(creds: Credentials, time?: number): string {
   throw new FreshCodeRequiredError();
 }
 
-function findCsrf(html: string): string {
+/** Cloudflare's bot check, served instead of the login page (seen from data-centre IPs). */
+export function looksLikeBotCheck(r: AxiosResponse): boolean {
+  const page = typeof r.data === "string" ? r.data : "";
+  return r.headers?.["cf-mitigated"] === "challenge" || /challenge-platform|cf-chl-|Just a moment\.\.\./i.test(page);
+}
+
+function findCsrf(r: AxiosResponse): string {
+  const html = typeof r.data === "string" ? r.data : "";
   const m = html.match(/name="_csrf"[^>]*value="([^"]+)"/);
-  if (!m) throw new Error("could not find CSRF token in form");
+  if (!m) {
+    const why = looksLikeBotCheck(r)
+      ? "Migros answered with a bot check instead (Cloudflare), which happens from servers and VPNs"
+      : `HTTP ${r.status}`;
+    throw new Error(`could not find the login form: ${why}`);
+  }
   return m[1];
 }
 
@@ -151,7 +163,7 @@ export async function fullLogin(session: Session, creds: Credentials): Promise<s
     const next = locationOf(r, LOGIN);
     if (next) r = await get(next, session);
   }
-  let csrf = findCsrf(r.data as string);
+  let csrf = findCsrf(r);
 
   // 2. POST email.
   r = await postForm(`${LOGIN}/login/email`, session, {
@@ -169,7 +181,7 @@ export async function fullLogin(session: Session, creds: Credentials): Promise<s
 
   // 4. GET password page → capture new CSRF + form action.
   r = await get(nextUrl, session);
-  csrf = findCsrf(r.data as string);
+  csrf = findCsrf(r);
   const passwordAction = (r.data as string).match(/<form[^>]+action="([^"]*)"/)?.[1] || nextUrl;
   const passwordUrl = new URL(passwordAction, nextUrl).toString();
 
@@ -191,7 +203,7 @@ export async function fullLogin(session: Session, creds: Credentials): Promise<s
   if (needsOtp) {
     const code = otpCodeFor(creds);
     r = await get(nextUrl, session);
-    csrf = findCsrf(r.data as string);
+    csrf = findCsrf(r);
     const otpAction = (r.data as string).match(/<form[^>]+action="([^"]*)"/)?.[1] || nextUrl;
     const otpUrl = new URL(otpAction, nextUrl).toString();
     r = await postForm(otpUrl, session, { _csrf: csrf, code });
